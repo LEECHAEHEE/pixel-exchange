@@ -1,0 +1,14 @@
+# OS·에디터
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.iml
+
+# 로컬 설정·비밀값 (API 키는 절대 커밋하지 않는다)
+.env
+.env.*
+*.local.js
+
+# Claude 로컬 설정
+.claude/

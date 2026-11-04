@@ -1,0 +1,244 @@
+:root {
+  --bg: #1b1410;
+  --board-bg: #050607;
+  --cell-line: #1a1d22;
+  --name: #f2d36b;
+  --flat: #e8e8e8;
+  --up: #ff4b4b;
+  --down: #4ba3ff;
+  --empty: #4a4d55;
+  --gold: #f1cf5a;
+  --font: 'Galmuri11', 'Galmuri9', 'DungGeunMo', 'Malgun Gothic', monospace;
+  --mono: 'GalmuriMono11', 'Galmuri11', 'Consolas', monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--flat);
+  font-family: var(--font);
+  overflow: hidden;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.stage {
+  --s: 4;
+  --ps: 4;
+  position: relative;
+  /* 오버레이 내부 변경이 바깥 레이아웃을 다시 계산하게 만들지 않도록 격리 */
+  contain: strict;
+}
+
+.stage canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  cursor: pointer;
+}
+
+/* 위치는 화면 배율(--ps), 전광판 안쪽 크기는 글자 배율을 곱한 --s 를 쓴다 */
+.sign, .board {
+  position: absolute;
+  left: calc(var(--x) * var(--ps) * 1px);
+  top: calc(var(--y) * var(--ps) * 1px);
+  width: calc(var(--w) * var(--ps) * 1px);
+  height: calc(var(--h) * var(--ps) * 1px);
+}
+
+.stage.seated .sign { display: none; }
+
+.sign {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--gold);
+  font-size: calc(var(--s) * 6px);
+  letter-spacing: calc(var(--s) * 0.6px);
+  text-shadow: calc(var(--s) * 0.5px) calc(var(--s) * 0.5px) 0 #0d2a1c;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* ---------- 전광판 ---------- */
+
+.board {
+  --s: calc(var(--ps) * var(--k, 1));
+  display: grid;
+  /* 왼쪽 패널은 비율로 잡아야 앉은 화면(글자 확대)에서도 종목 칸이 좁아지지 않는다 */
+  grid-template-columns: 26% 1fr;
+  grid-template-rows: 1fr calc(var(--s) * 7px);
+  background: var(--board-bg);
+  overflow: hidden;
+  contain: strict;
+  font-size: calc(var(--s) * 3.4px);
+  line-height: 1.15;
+}
+
+/* LED 느낌의 가로 주사선. 정적 배경이라 비용이 없다 */
+.board::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0) 0, rgba(0, 0, 0, 0) calc(var(--s) * 0.5px), rgba(0, 0, 0, 0.28) calc(var(--s) * 0.5px), rgba(0, 0, 0, 0.28) calc(var(--s) * 1px));
+}
+
+/* 왼쪽 패널: 시계 아래 남은 높이를 KOSPI, KOSDAQ 이 반씩 나눈다 */
+.board-side {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  border-right: calc(var(--s) * 0.5px) solid #2a2e36;
+  background: #0d1016;
+  white-space: nowrap;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.side-clock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: calc(var(--s) * 1.5px) 0 calc(var(--s) * 1px);
+  border-bottom: calc(var(--s) * 0.5px) solid #2a2e36;
+}
+/* 7세그먼트 시계처럼 보이도록 녹색 발광 */
+.clock {
+  font-family: var(--mono);
+  font-size: calc(var(--s) * 7.5px);
+  line-height: 1;
+  color: #5dff7a;
+  text-shadow: 0 0 calc(var(--s) * 1.5px) rgba(93, 255, 122, 0.55);
+  letter-spacing: calc(var(--s) * 0.3px);
+}
+.date-row {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--s) * 1.5px);
+  margin-top: calc(var(--s) * 1px);
+  font-size: calc(var(--s) * 2.6px);
+}
+.date { color: #8a8f99; }
+
+.indices {
+  display: grid;
+  grid-auto-rows: 1fr;
+  min-height: 0;
+}
+
+/* 참고: 실제 객장 전광판처럼 지수명 크게, 값·등락, 거래량·대금 순 */
+.idx {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--s) * 0.6px);
+  min-height: 0;
+  overflow: hidden;
+}
+.idx + .idx { border-top: calc(var(--s) * 0.5px) solid #5a1e22; }
+.idx em {
+  font-style: normal;
+  font-size: calc(var(--s) * 9px);
+  line-height: 1;
+  letter-spacing: calc(var(--s) * 0.8px);
+  color: #fff4c2;
+}
+.idx b { font-weight: normal; font-family: var(--mono); font-size: calc(var(--s) * 7.5px); line-height: 1; }
+.idx i { font-style: normal; font-family: var(--mono); font-size: calc(var(--s) * 4px); line-height: 1.1; }
+.idx small { font-family: var(--mono); font-size: calc(var(--s) * 3px); line-height: 1.1; color: var(--name); }
+.idx small:empty { display: none; }
+
+.status {
+  padding: 0 calc(var(--s) * 1px);
+  color: #0b0d10;
+  background: #8a8f99;
+}
+.status[data-live='1'] { background: #4fd16a; }
+
+.board-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--cols), 1fr);
+  grid-template-rows: repeat(var(--rows), 1fr);
+  grid-auto-flow: column;
+  gap: calc(var(--s) * 0.5px);
+  padding: calc(var(--s) * 0.5px);
+  background: var(--cell-line);
+  min-height: 0;
+}
+
+.cell {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: 1fr 1fr;
+  align-items: center;
+  padding: 0 calc(var(--s) * 1.2px);
+  background: var(--board-bg);
+  overflow: hidden;
+  white-space: nowrap;
+  contain: strict;
+}
+
+.nm {
+  grid-column: 1 / 3;
+  color: var(--name);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pr, .rt { font-family: var(--mono); }
+.pr { color: var(--flat); }
+.rt { justify-self: end; padding-left: calc(var(--s) * 1px); }
+
+.cell[data-dir='up'] .pr, .cell[data-dir='up'] .rt, .idx[data-dir='up'] b, .idx[data-dir='up'] i { color: var(--up); }
+.cell[data-dir='down'] .pr, .cell[data-dir='down'] .rt, .idx[data-dir='down'] b, .idx[data-dir='down'] i { color: var(--down); }
+
+.cell[data-empty] .nm, .cell[data-empty] .pr { color: var(--empty); }
+
+.cell.flash[data-dir='up'] { background: #3a0c0c; }
+.cell.flash[data-dir='down'] { background: #0c1f3a; }
+.cell.flash[data-dir='flat'] { background: #24262b; }
+
+.board-ticker {
+  grid-column: 1 / -1;
+  position: relative;
+  overflow: hidden;
+  border-top: calc(var(--s) * 0.5px) solid #2a2e36;
+  background: #0d1016;
+  color: var(--gold);
+  display: flex;
+  align-items: center;
+}
+
+/* transform 애니메이션만 써서 레이아웃·페인트 없이 GPU 에서 흐른다 */
+.ticker-track {
+  display: inline-block;
+  white-space: nowrap;
+  padding-left: 100%;
+  animation: marquee 30s linear infinite;
+  will-change: transform;
+}
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-100%); }
+}
+
+.hint {
+  color: #8a7a68;
+  font-size: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track { animation: none; padding-left: 0; }
+}

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>도트 객장</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/galmuri@2.40.3/dist/galmuri.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <main id="stage" class="stage">
+    <canvas id="scene" width="320" height="180"></canvas>
+
+    <!-- 전광판은 텍스트가 잦게 바뀌므로 캔버스가 아니라 DOM 오버레이로 둔다 -->
+    <div class="sign">도트증권 객장</div>
+    <section id="board" class="board" aria-label="시세 전광판">
+      <aside class="board-side">
+        <div class="side-clock">
+          <span class="clock" id="board-clock">--:--:--</span>
+          <span class="date-row"><span class="date" id="board-date"></span><span class="status" id="board-status">API 대기</span></span>
+        </div>
+        <div class="indices" id="board-indices"></div>
+      </aside>
+      <div class="board-grid" id="board-grid"></div>
+      <footer class="board-ticker"><div class="ticker-track" id="board-ticker"></div></footer>
+    </section>
+  </main>
+
+  <p class="hint" id="hint">방향키로 이동 · 빈 의자에 붙어 바라보고 Space 로 앉기</p>
+
+  <script src="js/config.js"></script>
+  <script src="js/board.js"></script>
+  <script src="js/feed.js"></script>
+  <script src="js/scene.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
