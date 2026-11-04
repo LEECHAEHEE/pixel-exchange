@@ -171,10 +171,13 @@ body {
   grid-template-columns: repeat(var(--cols), 1fr);
   grid-template-rows: repeat(var(--rows), 1fr);
   grid-auto-flow: column;
-  gap: calc(var(--s) * 0.5px);
-  padding: calc(var(--s) * 0.5px);
+  gap: 1px;
   background: var(--cell-line);
   min-height: 0;
+  min-width: 0;
+  /* 종목 글자는 화면 배율이 아니라 main.js 가 정한 px 크기를 따른다 */
+  font-size: var(--cell-font, 12px);
+  overflow: hidden;
 }
 
 .cell {
@@ -182,7 +185,7 @@ body {
   grid-template-columns: 1fr auto;
   grid-template-rows: 1fr 1fr;
   align-items: center;
-  padding: 0 calc(var(--s) * 1.2px);
+  padding: 0 0.35em;
   background: var(--board-bg);
   overflow: hidden;
   white-space: nowrap;
@@ -198,7 +201,7 @@ body {
 
 .pr, .rt { font-family: var(--mono); }
 .pr { color: var(--flat); }
-.rt { justify-self: end; padding-left: calc(var(--s) * 1px); }
+.rt { justify-self: end; padding-left: 0.3em; }
 
 .cell[data-dir='up'] .pr, .cell[data-dir='up'] .rt, .idx[data-dir='up'] b, .idx[data-dir='up'] i { color: var(--up); }
 .cell[data-dir='down'] .pr, .cell[data-dir='down'] .rt, .idx[data-dir='down'] b, .idx[data-dir='down'] i { color: var(--down); }

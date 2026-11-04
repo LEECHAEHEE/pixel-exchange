@@ -95,10 +95,14 @@
       '하나금융', '한국전력', 'KT&G', 'SK텔레콤', '포스코퓨처엠', 'HMM', '삼성생명', '고려아연',
       '대한항공', 'LG전자', '크래프톤', '한화오션', '두산에너빌', '에코프로', '알테오젠', '엔씨소프트',
       '삼성전기', 'SK이노베이션', 'S-Oil', '한미반도체', 'LIG넥스원', '한화에어로', 'HD현대중공업', '현대건설'];
-    const stocks = names.slice(0, board.size).map((name, i) => {
+    // 칸 수가 화면 크기에 따라 달라지므로 가장 큰 전광판도 채울 만큼 만든다
+    const DEMO_COUNT = 200;
+    const stocks = [];
+    for (let i = 0; i < DEMO_COUNT; i++) {
       const base = Math.round((5000 + Math.random() * 300000) / 50) * 50;
-      return { code: 'D' + String(i).padStart(5, '0'), name, base, price: base };
-    });
+      const name = names[i] || '데모종목' + String(i + 1).padStart(3, '0');
+      stocks.push({ code: 'D' + String(i).padStart(5, '0'), name, base, price: base });
+    }
     const idx = [
       { name: 'KOSPI', base: 2650, value: 2650, volume: 33000, amount: 49000 },
       { name: 'KOSDAQ', base: 850, value: 850, volume: 48000, amount: 31000 }

@@ -4,17 +4,42 @@
   const stage = document.getElementById('stage');
   const canvas = document.getElementById('scene');
 
+  const gridEl = document.getElementById('board-grid');
+  let scale = 1;
+  let seatedView = false;
+  let board = null;
+
   // 도트가 뭉개지지 않도록 2배 이상이면 정수 배율만 쓴다
   function fit() {
     const avail = Math.min(window.innerWidth / C.width, (window.innerHeight - 28) / C.height);
-    const s = avail >= 2 ? Math.floor(avail) : Math.max(1, avail);
-    stage.style.setProperty('--s', s);
-    stage.style.setProperty('--ps', s);
-    stage.style.width = C.width * s + 'px';
-    stage.style.height = C.height * s + 'px';
+    scale = avail >= 2 ? Math.floor(avail) : Math.max(1, avail);
+    stage.style.setProperty('--s', scale);
+    stage.style.setProperty('--ps', scale);
+    stage.style.width = C.width * scale + 'px';
+    stage.style.height = C.height * scale + 'px';
+    layoutGrid();
   }
-  window.addEventListener('resize', fit);
-  fit();
+
+  // 종목 글자는 읽기 좋은 크기 범위에서만 키우고, 남는 자리는 칸 수를 늘려 채운다.
+  // 그래서 큰 화면일수록 더 많은 종목이 보인다.
+  function layoutGrid() {
+    if (!board) return;
+    const c = C.cell;
+    const font = Math.min(c.maxFont, Math.max(c.minFont, c.fontPerScale * scale)) * (seatedView ? c.seatedBoost : 1);
+    gridEl.style.setProperty('--cell-font', font.toFixed(1) + 'px');
+    const cellW = font * c.wEm + 1;
+    const cellH = font * c.hEm + 1;
+    const cols = Math.max(1, Math.min(c.maxCols, Math.floor(gridEl.clientWidth / cellW)));
+    const rows = Math.max(1, Math.min(c.maxRows, Math.floor(gridEl.clientHeight / cellH)));
+    board.resize(cols, rows);
+  }
+
+  let resizeTimer = 0;
+  window.addEventListener('resize', () => {
+    // 창 크기를 끄는 동안 칸을 매번 다시 만들지 않도록 멈춘 뒤 한 번만 계산
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(fit, 120);
+  });
 
   // 오버레이 위치를 config 좌표에서 가져와 캔버스 프레임과 어긋나지 않게 한다
   function place(el, r) {
@@ -28,19 +53,18 @@
   place(boardEl, C.board);
   place(document.querySelector('.sign'), C.sign);
 
-  const board = PX.createBoard({
-    gridEl: document.getElementById('board-grid'),
+  board = PX.createBoard({
+    gridEl,
     indicesEl: document.getElementById('board-indices'),
     statusEl: document.getElementById('board-status'),
     clockEl: document.getElementById('board-clock'),
     dateEl: document.getElementById('board-date'),
     tickerEl: document.getElementById('board-ticker'),
-    cols: C.grid.cols,
-    rows: C.grid.rows,
     flashMs: C.flashMs,
     indexNames: C.indices,
     tickerIdle: C.tickerIdle
   });
+  fit();
 
   const scene = PX.createScene(canvas);
   const frameMs = 1000 / C.renderFps;
@@ -70,6 +94,8 @@
       if (seated !== (hintState === 'seated')) {
         place(boardEl, seated ? C.boardSeated : C.board);
         stage.classList.toggle('seated', seated);
+        seatedView = seated;
+        layoutGrid();
       }
       hintState = state;
       hintEl.textContent = HINTS[state];

@@ -1,6 +1,6 @@
 // 시세 전광판. 외부(API 어댑터)는 이 모듈의 공개 메서드만 호출하면 된다.
 //
-//   board.setSymbols([{ code, name }])          슬롯에 종목 배치(순서대로)
+//   board.setSymbols([{ code, name }])          표시 순서대로 종목 등록
 //   board.push(tick | tick[])                   { code, price, change, rate, name? }
 //   board.setIndices([{ name, value, change, rate, volume?, amount? }])
 //                                               volume 은 만주, amount 는 억원 단위로 넘긴다
@@ -8,11 +8,16 @@
 //   board.setTicker(text)
 //   board.clear()
 //
+// 칸 수는 화면 크기에 따라 main.js 가 resize(cols, rows) 로 바꾼다.
+// 칸에 다 못 들어간 종목도 마지막 시세를 기억해 두었다가, 칸이 늘면 바로 보여준다.
+//
 // push 는 몇 번을 부르든 다음 프레임에 한 번만 DOM 에 반영된다.
 // 같은 종목의 틱이 프레임 사이에 여러 번 오면 마지막 값만 그린다.
 (function () {
   const numFmt = new Intl.NumberFormat('ko-KR');
   const EMPTY = '-';
+  // 등록 안 된 종목이 끝없이 들어와도 메모리가 늘지 않게 막는 상한
+  const MAX_SYMBOLS = 1000;
 
   function fmtPrice(v) {
     if (v == null || Number.isNaN(v)) return EMPTY;
@@ -39,28 +44,22 @@
     return dir === 'up' ? '▲' : dir === 'down' ? '▼' : '';
   }
 
+  function createSlot() {
+    const el = document.createElement('div');
+    el.className = 'cell';
+    el.dataset.dir = 'flat';
+    el.dataset.empty = '';
+    const nm = document.createElement('span'); nm.className = 'nm';
+    const pr = document.createElement('span'); pr.className = 'pr';
+    const rt = document.createElement('span'); rt.className = 'rt';
+    nm.textContent = EMPTY;
+    pr.textContent = EMPTY;
+    el.append(nm, pr, rt);
+    return { el, nm, pr, rt, code: null, last: { name: EMPTY, price: EMPTY, rate: '', dir: 'flat' } };
+  }
+
   function createBoard(opts) {
-    const { gridEl, indicesEl, statusEl, clockEl, dateEl, tickerEl, cols, rows, flashMs, indexNames, tickerIdle } = opts;
-    const size = cols * rows;
-
-    gridEl.style.setProperty('--cols', cols);
-    gridEl.style.setProperty('--rows', rows);
-
-    // 슬롯 DOM 은 처음 한 번만 만들고 이후에는 textContent 만 바꾼다
-    const slots = [];
-    const frag = document.createDocumentFragment();
-    for (let i = 0; i < size; i++) {
-      const el = document.createElement('div');
-      el.className = 'cell';
-      el.dataset.dir = 'flat';
-      const nm = document.createElement('span'); nm.className = 'nm';
-      const pr = document.createElement('span'); pr.className = 'pr';
-      const rt = document.createElement('span'); rt.className = 'rt';
-      el.append(nm, pr, rt);
-      frag.appendChild(el);
-      slots.push({ el, nm, pr, rt, code: null, last: { name: '', price: '', rate: '', dir: 'flat' } });
-    }
-    gridEl.appendChild(frag);
+    const { gridEl, indicesEl, statusEl, clockEl, dateEl, tickerEl, flashMs, indexNames, tickerIdle } = opts;
 
     const indexRows = new Map();
     for (const name of indexNames) {
@@ -73,10 +72,18 @@
       indexRows.set(name, el);
     }
 
+    // 표시 순서·종목명·마지막 시세. 칸 수와 무관하게 유지된다.
+    const order = [];
+    const known = new Set();
+    const names = new Map();
+    const latest = new Map();
+
+    let slots = [];
     const codeToSlot = new Map();
     const pending = new Map();
     const flashing = new Map();
     let scheduled = false;
+    let cols = 0, rows = 0;
 
     function writeText(slot, key, el, text) {
       if (slot.last[key] !== text) {
@@ -85,45 +92,68 @@
       }
     }
 
-    function resetSlot(slot) {
-      slot.code = null;
-      slot.el.dataset.empty = '';
-      writeText(slot, 'name', slot.nm, EMPTY);
-      writeText(slot, 'price', slot.pr, EMPTY);
-      writeText(slot, 'rate', slot.rt, '');
-      slot.el.dataset.dir = slot.last.dir = 'flat';
+    function drawTick(slot, tick) {
+      const dir = dirOf(tick.change);
+      const priceText = fmtPrice(tick.price);
+      const changed = slot.last.price !== priceText;
+      writeText(slot, 'price', slot.pr, priceText);
+      writeText(slot, 'rate', slot.rt, arrow(dir) + fmtRate(tick.rate));
+      if (slot.last.dir !== dir) slot.el.dataset.dir = slot.last.dir = dir;
+      return changed;
     }
 
-    function slotFor(code, name) {
-      let idx = codeToSlot.get(code);
-      if (idx !== undefined) return slots[idx];
-      // 등록 안 된 종목은 빈 슬롯에 자동 배치하고, 꽉 차면 버린다
-      idx = slots.findIndex(s => s.code === null);
-      if (idx < 0) return null;
-      codeToSlot.set(code, idx);
-      const slot = slots[idx];
+    function bind(i) {
+      const slot = slots[i];
+      const code = order[i];
       slot.code = code;
+      codeToSlot.set(code, i);
       delete slot.el.dataset.empty;
-      writeText(slot, 'name', slot.nm, name || code);
-      return slot;
+      writeText(slot, 'name', slot.nm, names.get(code) || code);
+      const tick = latest.get(code);
+      if (tick) drawTick(slot, tick);
+    }
+
+    // 칸 DOM 을 통째로 다시 만든다. 화면 크기가 바뀔 때만 불리므로 비용이 문제되지 않는다.
+    function rebuild() {
+      flashing.clear();
+      codeToSlot.clear();
+      const size = cols * rows;
+      slots = [];
+      const frag = document.createDocumentFragment();
+      for (let i = 0; i < size; i++) {
+        const slot = createSlot();
+        slots.push(slot);
+        frag.appendChild(slot.el);
+      }
+      gridEl.replaceChildren(frag);
+      gridEl.style.setProperty('--cols', cols);
+      gridEl.style.setProperty('--rows', rows);
+      const n = Math.min(size, order.length);
+      for (let i = 0; i < n; i++) bind(i);
+    }
+
+    function register(code, name) {
+      if (name) names.set(code, name);
+      if (known.has(code) || order.length >= MAX_SYMBOLS) return;
+      order.push(code);
+      known.add(code);
+      // 새 종목이 빈 칸에 들어갈 자리가 있으면 바로 배치
+      if (order.length <= slots.length) bind(order.length - 1);
     }
 
     function flush() {
       scheduled = false;
       const now = performance.now();
       for (const tick of pending.values()) {
-        const slot = slotFor(tick.code, tick.name);
-        if (!slot) continue;
+        register(tick.code, tick.name);
+        if (!known.has(tick.code)) continue;
+        latest.set(tick.code, tick);
+
+        const idx = codeToSlot.get(tick.code);
+        if (idx === undefined) continue;
+        const slot = slots[idx];
         if (tick.name) writeText(slot, 'name', slot.nm, tick.name);
-
-        const dir = dirOf(tick.change);
-        const priceText = fmtPrice(tick.price);
-        const priceChanged = slot.last.price !== priceText;
-        writeText(slot, 'price', slot.pr, priceText);
-        writeText(slot, 'rate', slot.rt, arrow(dir) + fmtRate(tick.rate));
-        if (slot.last.dir !== dir) slot.el.dataset.dir = slot.last.dir = dir;
-
-        if (priceChanged) {
+        if (drawTick(slot, tick)) {
           if (!flashing.has(slot.el)) slot.el.classList.add('flash');
           flashing.set(slot.el, now + flashMs);
         }
@@ -164,17 +194,27 @@
     }
 
     const board = {
-      size,
+      get size() { return slots.length; },
+      get cols() { return cols; },
+      get rows() { return rows; },
+
+      resize(c, r) {
+        if (c === cols && r === rows) return;
+        cols = c;
+        rows = r;
+        rebuild();
+      },
 
       setSymbols(list) {
-        codeToSlot.clear();
-        slots.forEach(resetSlot);
-        list.slice(0, size).forEach((s, i) => {
-          codeToSlot.set(s.code, i);
-          slots[i].code = s.code;
-          delete slots[i].el.dataset.empty;
-          writeText(slots[i], 'name', slots[i].nm, s.name || s.code);
-        });
+        order.length = 0;
+        known.clear();
+        for (const s of list.slice(0, MAX_SYMBOLS)) {
+          if (known.has(s.code)) continue;
+          order.push(s.code);
+          known.add(s.code);
+          if (s.name) names.set(s.code, s.name);
+        }
+        rebuild();
       },
 
       push(ticks) {
@@ -213,8 +253,11 @@
 
       clear() {
         pending.clear();
-        codeToSlot.clear();
-        slots.forEach(resetSlot);
+        order.length = 0;
+        known.clear();
+        names.clear();
+        latest.clear();
+        rebuild();
         board.setIndices(indexNames.map(name => ({ name })));
       }
     };
