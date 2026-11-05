@@ -210,6 +210,10 @@
     net.send({ t: 'move', x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10, dir: p.dir, moving: p.moving });
   }, 100);
 
+  // 무료 호스팅(Render)은 들어오는 메시지가 15분 없으면 서버를 재운다.
+  // 모두 앉아서 전광판만 보고 있어도 깨어 있도록 4분마다 작은 신호를 보낸다.
+  setInterval(() => net.send({ t: 'ping' }), 4 * 60 * 1000);
+
   // ---------- 입장 화면 ----------
 
   const joinEl = document.getElementById('join');

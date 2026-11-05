@@ -99,6 +99,9 @@ function createRoom({ market }) {
 
   function handle(u, msg) {
     switch (msg.t) {
+      // 호스팅이 서버를 재우지 않게 하는 신호. 할 일은 없다.
+      case 'ping':
+        return;
       case 'move': {
         if (u.seat !== null) return;
         const x = clampNum(msg.x, BOUNDS.x0, BOUNDS.x1);

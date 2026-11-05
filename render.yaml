@@ -1,0 +1,13 @@
+# Render 배포 설정 (https://render.com/docs/blueprint-spec)
+# 무료 플랜은 15분 동안 요청·웹소켓 메시지가 없으면 잠들고, 다음 접속 때 약 1분 뒤 깨어난다.
+services:
+  - type: web
+    name: pixel-exchange
+    runtime: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
