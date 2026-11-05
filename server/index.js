@@ -83,7 +83,7 @@ wss.on('connection', (ws) => {
 
     // 입장(join) 전에는 다른 메시지를 받지 않는다
     if (!user) {
-      if (msg.t === 'join') user = room.join(ws, msg.name);
+      if (msg.t === 'join') user = room.join(ws, msg.name, msg.equip);
       return;
     }
     room.handle(user, msg);

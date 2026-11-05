@@ -6,11 +6,12 @@
 
   // X 키로 화면 전체를 까맣게 가렸다가 다시 X 로 되돌린다.
   // 캐릭터·채팅·상점보다 먼저 키를 받아야 해서 다른 키 처리보다 가장 먼저 등록한다.
+  // 한/영이 한글이어도(ㅌ) 키 위치(code)로 판단한다. 입력칸이 아니면 글자 조합은 신경 쓸 필요가 없다.
   const coverEl = document.getElementById('cover');
   window.addEventListener('keydown', (e) => {
     const t = e.target;
     const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
-    if (e.code === 'KeyX' && !typing && !e.repeat && !e.isComposing) {
+    if (e.code === 'KeyX' && !typing && !e.repeat) {
       coverEl.hidden = !coverEl.hidden;
       if (!coverEl.hidden) {
         PX.scene && PX.scene.releaseKeys();
@@ -26,6 +27,14 @@
       e.stopImmediatePropagation();
     }
   }, true);
+
+  // 조작 방법 창(Esc). 상점·인벤토리·감정표현 판이 Esc 로 닫힐 때 따라 열리지 않도록
+  // 그 창들보다 먼저 키를 받게 여기서 만든다(그 창들은 아래에서 만들어져 PX 에 등록된다).
+  const help = PX.createHelp({
+    canOpen: () => document.getElementById('join').hidden
+      && !(PX.shop && PX.shop.open) && !(PX.inventory && PX.inventory.open) && !(PX.emote && PX.emote.open)
+  });
+  document.getElementById('hint').addEventListener('click', () => help.toggle());
 
   const gridEl = document.getElementById('board-grid');
   let scale = 1;
@@ -135,18 +144,37 @@
   const race = PX.createRace({ stage, scene });
   place(race.el, C.racePanel);
   PX.race = race;
+  // 인벤토리(I): 상점에서 산 아이템을 보관하고 입는다. 착용은 서버로 알려 다른 사람에게도 보이게 한다.
+  // 감정표현 판(C)은 아래에서 만든다. 인벤토리가 열 수 있는지 판단할 때 함께 본다.
+  let emote = null;
+  const inventory = PX.createInventory({
+    getBaseLook: () => scene.player.baseLook,
+    canOpen: () => scene.player.active && !shop.open && !(emote && emote.open)
+  });
+  shop.onBuy = (item) => inventory.add(item.id);
+  shop.isOwned = (id) => inventory.has(id);
+  scene.setMyEquip(inventory.equipped);
+  inventory.onOpen = () => scene.setLocked(true);
+  inventory.onClose = () => scene.setLocked(false);
+  // onEquip 은 서버 연결(net)을 만든 뒤 아래에서 연결한다
+
+  // 감정표현(C): 채팅 입력줄 자리에 방향키 판. ↑ 인사.
+  emote = PX.createEmote({
+    chatForm: document.getElementById('chat-form'),
+    canOpen: () => scene.player.active && !shop.open && !inventory.open
+  });
 
   const frameMs = 1000 / C.renderFps;
   let last = performance.now();
 
   const hintEl = document.getElementById('hint');
   const HINTS = {
-    free: '방향키로 이동 · 빈 의자 바라보고 Space 로 앉기 · 빨간 복도 아래는 사거리 · Enter 채팅',
+    free: '[Esc] 조작 방법',
     near: 'Space 로 앉기',
     talk: 'Space 로 상점 주인에게 말 걸기',
     seated: 'Space 또는 ↓ ← → 로 일어나기',
-    'crossroad:free': '방향키로 이동 · 아래 복도는 경마장, 위 복도는 객장 · Enter 로 채팅',
-    'racetrack:free': '1~5 키 또는 전광판 클릭으로 우승마 투표 · 위쪽 출입문은 사거리 · Enter 로 채팅'
+    'crossroad:free': '아래 복도는 경마장, 위 복도는 객장 · [Esc] 조작 방법',
+    'racetrack:free': '1~5 키·전광판 클릭으로 우승마 투표 · [Esc] 조작 방법'
   };
   let hintState = 'free';
 
@@ -201,6 +229,7 @@
 
   const net = PX.createNet({
     url: (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws',
+    joinExtra: () => ({ equip: inventory.equipped }),
     onState(state) {
       onlineEl.dataset.state = state;
       if (state === 'connecting') onlineEl.textContent = '연결 중';
@@ -214,6 +243,8 @@
         scene.net.welcome(msg.me, msg.users);
         chat.setName('me', msg.me.name);
         for (const u of msg.users) chat.setName(u.id, u.name);
+        chat.setLog(msg.history || []);
+        scene.net.dog(msg.dog);
         applyMarket(msg.market);
         if (msg.race) race.apply(msg.race);
         refreshOnline();
@@ -237,7 +268,14 @@
       stand(msg) { if (msg.id !== myId) scene.net.stand(msg.id, msg.x, msg.y, msg.dir); },
       sitDenied() { scene.net.sitDenied(); },
       go(msg) { if (msg.id !== myId) scene.net.go(msg.id, msg.map, msg.x, msg.y, msg.dir); },
-      chat(msg) { chat.say(whoOf(msg.id), msg.text); },
+      equip(msg) { if (msg.id !== myId) scene.net.equip(msg.id, msg.equip); },
+      emote(msg) { if (msg.id !== myId) scene.playEmote(msg.id, msg.emote); },
+      // 강아지가 새 주인을 만나면 짖는다
+      dog(msg) { if (scene.net.dog(msg) && msg.owner) chat.say('dog', '멍!'); },
+      chat(msg) {
+        chat.say(whoOf(msg.id), msg.text);
+        chat.addLog(msg.name || '?', msg.text);
+      },
 
       race(msg) { race.apply(msg); },
       raceVotes(msg) { race.setCounts(msg.counts); },
@@ -252,6 +290,14 @@
   });
 
   scene.hooks.onSit = (seat) => net.send({ t: 'sit', seat });
+  inventory.onEquip = (ids) => {
+    scene.setMyEquip(ids);
+    net.send({ t: 'equip', equip: ids });
+  };
+  emote.onEmote = (type) => {
+    scene.playEmote('me', type);
+    net.send({ t: 'emote', emote: type });
+  };
   scene.hooks.onStand = (x, y, dir) => net.send({ t: 'stand', x, y, dir });
   scene.hooks.onGo = (map, x, y, dir) => net.send({ t: 'go', map, x, y, dir });
   chat.onSend = (text) => net.send({ t: 'chat', text });
@@ -296,4 +342,7 @@
   PX.chat = chat;
   PX.net = net;
   PX.shop = shop;
+  PX.inventory = inventory;
+  PX.emote = emote;
+  PX.help = help;
 })();

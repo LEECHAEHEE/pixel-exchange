@@ -215,28 +215,101 @@
   // ---------- 사람 ----------
 
   // (x, y) 는 발끝 가운데. frame 0 은 정지, 1·2 는 걷기 동작.
-  function drawPerson(g, x, y, look, dir, frame) {
+  // pose: 감정표현 중일 때의 자세. { bow: 0|1|2 } 는 꾸벅 인사(머리를 숙인 칸 수).
+  function drawPerson(g, x, y, look, dir, frame, pose) {
     rect(g, x - 4, y - 1, 8, 2, 'rgba(0,0,0,0.18)');
 
     const lUp = frame === 1 ? 1 : 0;
     const rUp = frame === 2 ? 1 : 0;
+    // 꾸벅 인사: 머리가 몸 쪽으로 내려오고(어깨를 덮는다), 옆모습이면 끝까지 숙일 때 앞으로 한 칸 나간다
+    const bow = pose && pose.bow ? pose.bow : 0;
+    const lean = bow === 2 ? (dir === 'left' ? -1 : dir === 'right' ? 1 : 0) : 0;
+    const cx = x + lean;
     const p = [
       [x - 3, y - 4, 3, 3 - lUp, look.pants],
       [x + 1, y - 4, 3, 3 - rUp, look.pants],
       [x - 4, y - 10, 8, 6, look.shirt],
-      [x - 4, y - 17, 8, 7, PAL.skin]
+      [cx - 4, y - 17 + bow, 8, 7, PAL.skin]
     ];
     parts(g, p);
-    rect(g, x - 3, y - 2 - lUp, 3, 1, PAL.shoe);
-    rect(g, x + 1, y - 2 - rUp, 3, 1, PAL.shoe);
 
-    // 팔
+    // 하의 무늬: 반바지(무릎 아래 맨살), 체크
+    if (look.shorts) {
+      rect(g, x - 3, y - 3, 3, 1, PAL.skin);
+      rect(g, x + 1, y - 3, 3, 1, PAL.skin);
+    }
+    if (look.check) {
+      rect(g, x - 3, y - 4, 1, 1, look.check);
+      rect(g, x - 1, y - 3, 1, 1, look.check);
+      rect(g, x + 1, y - 4, 1, 1, look.check);
+      rect(g, x + 3, y - 3, 1, 1, look.check);
+    }
+    if (look.stripe) {
+      rect(g, x - 3, y - 4, 1, 2, look.stripe);
+      rect(g, x + 3, y - 4, 1, 2, look.stripe);
+    }
+
+    const shoe = look.shoes || PAL.shoe;
+    rect(g, x - 3, y - 2 - lUp, 3, 1, shoe);
+    rect(g, x + 1, y - 2 - rUp, 3, 1, shoe);
+    // 슬리퍼는 발가락이 보인다
+    if (look.slipper) {
+      rect(g, x - 2, y - 2 - lUp, 1, 1, PAL.skin);
+      rect(g, x + 2, y - 2 - rUp, 1, 1, PAL.skin);
+    }
+
+    // 상의 위에 덧그리는 것: 조끼, 넥타이, 가슴 무늬, 트레이닝 옆줄
+    if (look.vest) {
+      if (dir === 'down') {
+        rect(g, x - 4, y - 10, 3, 6, look.vest);
+        rect(g, x + 1, y - 10, 3, 6, look.vest);
+      } else {
+        rect(g, x - 4, y - 10, 8, 6, look.vest);
+      }
+    }
+    if (look.tie && dir === 'down') {
+      rect(g, x - 1, y - 10, 2, 5, look.tie);
+      rect(g, x - 1, y - 6, 1, 1, look.tie);
+    }
+    if (look.print && dir === 'down') {
+      for (const [dx, dy] of [[-3, -9], [-1, -8], [1, -9], [2, -7], [-2, -6], [0, -7]]) rect(g, x + dx, y + dy, 1, 1, look.print);
+    }
+    if (look.stripe && dir !== 'left' && dir !== 'right') {
+      rect(g, x - 4, y - 10, 1, 6, look.stripe);
+      rect(g, x + 3, y - 10, 1, 6, look.stripe);
+    }
+
+    // 한벌옷 치마: 허리선 아래로 넓게 퍼지는 A라인. 주름선과 진한 밑단으로 윗옷과 구분한다.
+    // 걸을 때는 밑단의 주름 위치만 한 칸씩 바뀌어 흔들려 보인다.
+    if (look.skirt) {
+      const lo = look.skirtLo || look.skirt;
+      rect(g, x - 5, y - 5, 10, 1, PAL.outline);
+      rect(g, x - 6, y - 4, 12, 1, PAL.outline);
+      rect(g, x - 7, y - 3, 14, 2, PAL.outline);
+      rect(g, x - 4, y - 6, 8, 1, lo);              // 허리선
+      rect(g, x - 4, y - 5, 8, 1, look.skirt);
+      rect(g, x - 5, y - 4, 10, 1, look.skirt);
+      rect(g, x - 6, y - 3, 12, 1, look.skirt);
+      rect(g, x - 6, y - 2, 12, 1, lo);             // 밑단
+      const s = frame === 1 ? -1 : frame === 2 ? 1 : 0;
+      for (const dx of [-3, 0, 3]) rect(g, x + dx + s, y - 3, 1, 1, lo);
+      rect(g, x - 2, y - 4, 1, 1, lo);
+      rect(g, x + 1, y - 4, 1, 1, lo);
+      // 밑단 아래로 신발만 살짝 보인다
+      rect(g, x - 3, y - 1, 2, 1, shoe);
+      rect(g, x + 1, y - 1, 2, 1, shoe);
+    }
+
+    // 팔(반지는 손끝 금색 점)
     if (dir === 'left' || dir === 'right') {
-      rect(g, x - 1, y - 9 + (frame ? 1 : 0), 2, 4, look.shirtLo || look.shirt);
-      rect(g, x - 1, y - 6 + (frame ? 1 : 0), 2, 1, PAL.skin);
+      const ay = y - 9 + (frame ? 1 : 0);
+      rect(g, x - 1, ay, 2, 4, look.shirtLo || look.shirt);
+      rect(g, x - 1, ay + 3, 2, 1, PAL.skin);
+      if (look.ring) rect(g, x, ay + 3, 1, 1, look.ring);
     } else {
       rect(g, x - 5, y - 9, 1, 4, PAL.skin);
       rect(g, x + 4, y - 9, 1, 4, PAL.skin);
+      if (look.ring) rect(g, x + 4, y - 6, 1, 1, look.ring);
     }
 
     // 상점 주인 앞치마
@@ -245,44 +318,166 @@
       rect(g, x - 1, y - 7, 2, 1, PAL.paper);
     }
 
-    // 머리카락·눈
-    const hy = y - 17;
+    // 머리카락·눈. 숙일수록 정수리(머리카락)가 더 보이고, 끝까지 숙이면 눈이 안 보인다.
+    const hy = y - 17 + bow;
     const hair = look.hair;
+    const crownRows = 2 + bow;
     if (dir === 'up') {
-      rect(g, x - 4, hy, 8, 6, hair);
-      rect(g, x - 4, hy + 3, 1, 2, PAL.skin);
-      rect(g, x + 3, hy + 3, 1, 2, PAL.skin);
+      rect(g, cx - 4, hy, 8, 6, hair);
+      rect(g, cx - 4, hy + 3, 1, 2, PAL.skin);
+      rect(g, cx + 3, hy + 3, 1, 2, PAL.skin);
     } else if (dir === 'down') {
-      rect(g, x - 4, hy, 8, 2, hair);
-      rect(g, x - 4, hy + 2, 1, 2, hair);
-      rect(g, x + 3, hy + 2, 1, 2, hair);
-      rect(g, x - 2, hy + 4, 1, 1, PAL.eye);
-      rect(g, x + 1, hy + 4, 1, 1, PAL.eye);
+      rect(g, cx - 4, hy, 8, crownRows, hair);
+      rect(g, cx - 4, hy + 2, 1, 2, hair);
+      rect(g, cx + 3, hy + 2, 1, 2, hair);
+      if (bow < 2) {
+        rect(g, cx - 2, hy + 4, 1, 1, PAL.eye);
+        rect(g, cx + 1, hy + 4, 1, 1, PAL.eye);
+      }
     } else {
       const s = dir === 'left' ? 1 : -1;
-      rect(g, x - 4, hy, 8, 2, hair);
-      rect(g, s > 0 ? x : x - 4, hy + 2, 4, 3, hair);
-      rect(g, x - 3 * s - (s < 0 ? 1 : 0), hy + 4, 1, 1, PAL.eye);
+      rect(g, cx - 4, hy, 8, crownRows, hair);
+      rect(g, s > 0 ? cx : cx - 4, hy + 2, 4, 3, hair);
+      if (bow < 2) rect(g, cx - 3 * s - (s < 0 ? 1 : 0), hy + 4, 1, 1, PAL.eye);
     }
 
+    // 귀걸이: 귀 바로 아래 금색 점. 옆모습이면 보이는 쪽 귀에만.
+    if (look.earring) {
+      if (dir === 'left') rect(g, cx + 4, hy + 5, 1, 1, look.earring);
+      else if (dir === 'right') rect(g, cx - 5, hy + 5, 1, 1, look.earring);
+      else {
+        rect(g, cx - 5, hy + 5, 1, 1, look.earring);
+        rect(g, cx + 4, hy + 5, 1, 1, look.earring);
+      }
+    }
+
+    drawHeadwear(g, cx, hy, look, dir);
+  }
+
+  // 머리에 쓰는 것. x 는 머리 가운데(머리는 x-4 ~ x+3), hy 는 머리 꼭대기 줄.
+  // 서 있는 사람과 앉은 뒷모습(dir 'up')이 함께 쓴다.
+  function drawHeadwear(g, x, hy, look, dir) {
     if (look.cap) {
       rect(g, x - 5, hy - 2, 10, 4, PAL.outline);
       rect(g, x - 4, hy - 1, 8, 3, look.cap);
-      if (dir === 'down') {
+      if (look.fedora) {
+        // 중절모: 사방으로 넓은 챙과 띠
+        rect(g, x - 7, hy + 1, 14, 2, PAL.outline);
+        rect(g, x - 6, hy + 1, 12, 1, look.capLo);
+        rect(g, x - 4, hy, 8, 1, look.fedora);
+      } else if (dir === 'down') {
         rect(g, x - 4, hy + 2, 8, 1, look.capLo);
-        rect(g, x - 1, hy, 2, 1, '#ffffff');
+        if (look.capMark === 'up') {
+          rect(g, x - 1, hy - 1, 2, 1, '#ffffff');
+          rect(g, x - 2, hy, 4, 1, '#ffffff');
+        } else if (look.capMark === 'down') {
+          rect(g, x - 2, hy - 1, 4, 1, '#ffffff');
+          rect(g, x - 1, hy, 2, 1, '#ffffff');
+        } else {
+          rect(g, x - 1, hy, 2, 1, '#ffffff');
+        }
       } else if (dir === 'left') {
         rect(g, x - 7, hy + 1, 3, 1, look.capLo);
+        if (look.capMark) rect(g, x - 3, hy, 1, 1, '#ffffff');
       } else if (dir === 'right') {
         rect(g, x + 4, hy + 1, 3, 1, look.capLo);
+        if (look.capMark) rect(g, x + 2, hy, 1, 1, '#ffffff');
+      }
+    }
+
+    if (look.crown) {
+      // 세 봉우리 왕관과 가운데 보석
+      for (const [ox, oy, w, h] of [[-5, -4, 3, 4], [-2, -5, 4, 5], [2, -4, 3, 4], [-5, -2, 10, 3]]) {
+        rect(g, x + ox, hy + oy, w, h, PAL.outline);
+      }
+      rect(g, x - 4, hy - 3, 1, 2, look.crown);
+      rect(g, x - 1, hy - 4, 2, 3, look.crown);
+      rect(g, x + 3, hy - 3, 1, 2, look.crown);
+      rect(g, x - 4, hy - 1, 8, 1, look.crown);
+      if (dir !== 'up') rect(g, x - 1, hy - 1, 2, 1, '#e0404a');
+    }
+
+    // 황소 뿔: 모자 옆에 붙어서 바깥으로 나갔다가 위로 휘어 오른다
+    if (look.horns) {
+      rect(g, x - 8, hy - 1, 4, 3, PAL.outline);
+      rect(g, x - 9, hy - 4, 3, 4, PAL.outline);
+      rect(g, x + 4, hy - 1, 4, 3, PAL.outline);
+      rect(g, x + 6, hy - 4, 3, 4, PAL.outline);
+      rect(g, x - 7, hy, 2, 1, look.horns);
+      rect(g, x - 8, hy - 3, 1, 3, look.horns);
+      rect(g, x + 5, hy, 2, 1, look.horns);
+      rect(g, x + 7, hy - 3, 1, 3, look.horns);
+    }
+
+    // 곰 귀: 머리 위 양쪽의 동그란 귀
+    if (look.bearEars) {
+      rect(g, x - 6, hy - 4, 4, 4, PAL.outline);
+      rect(g, x + 2, hy - 4, 4, 4, PAL.outline);
+      rect(g, x - 5, hy - 3, 2, 2, look.bearEars);
+      rect(g, x + 3, hy - 3, 2, 2, look.bearEars);
+      if (dir !== 'up') {
+        rect(g, x - 4, hy - 2, 1, 1, '#e8a0a0');
+        rect(g, x + 3, hy - 2, 1, 1, '#e8a0a0');
       }
     }
   }
 
+  // 흰 포메라니안(옆모습, 오른쪽을 보는 그림). 등 위로 말린 복슬 꼬리, 짧은 다리.
+  //   o 외곽선  w 털  s 배 그늘  n 눈·코  t/T 꼬리 외곽선/털(흔들 때 좌우로 한 칸씩)
+  // 다리는 걷기 동작에 따라 따로 그린다.
+  const DOG_ROWS = [
+    '                    ',
+    '    ttt     o o     ',
+    '   tTTTt   owowo    ',
+    '   owwwwoooowwwwo   ',
+    '    owwwwwwwwwwnwo  ',
+    '   owwwwwwwwwwwwwno ',
+    '   owwwwwwwwwwwwwo  ',
+    '   owwwwwwwwwwwwo   ',
+    '    osssssssssso    '
+  ];
+  const DOG_COL = { o: PAL.outline, t: PAL.outline, w: '#f7f6f1', T: '#f7f6f1', s: '#d9d6cc', n: '#2a1d18' };
+  const DOG_LEGS = [5, 12];       // 뒷다리·앞다리 왼쪽 칸
+  const DOG_CX = 10;              // 그림에서 발끝 가운데가 되는 칸
+
+  // (x, y) 는 발끝 가운데, dir 은 'left' | 'right'. frame 은 걷기 동작(0 정지, 1·2 번갈아 다리 들기),
+  // wag 는 꼬리 흔들기(0/1).
+  function drawDog(g, x, y, dir, frame, wag) {
+    const flip = dir === 'left';
+    // 그림 칸 (col, row) 을 화면 좌표로. 왼쪽을 보면 좌우를 뒤집는다.
+    const px = (col) => flip ? x + (DOG_CX - 1 - col) : x - DOG_CX + col;
+    const top = y - 11;
+    const dot = (col, row, c) => rect(g, px(col), top + row, 1, 1, c);
+
+    rect(g, x - 6, y, 12, 1, 'rgba(0,0,0,0.18)');
+    DOG_ROWS.forEach((row, ry) => {
+      for (let cx = 0; cx < row.length; cx++) {
+        const ch = row[cx];
+        const c = DOG_COL[ch];
+        if (!c) continue;
+        // 꼬리는 흔들 때 몸 바깥쪽(뒤쪽)으로 한 칸 밀린다
+        dot(ch === 't' || ch === 'T' ? cx - wag : cx, ry, c);
+      }
+    });
+    // 다리: 정지면 둘 다 디디고, 걸을 때는 frame 에 따라 앞·뒤 다리가 번갈아 들린다
+    DOG_LEGS.forEach((lx, i) => {
+      const lifted = (frame === 1 && i === 1) || (frame === 2 && i === 0);
+      if (lifted) {
+        for (let k = 0; k < 3; k++) dot(lx + k, 9, PAL.outline);
+      } else {
+        dot(lx, 9, PAL.outline); dot(lx + 1, 9, '#d9d6cc'); dot(lx + 2, 9, PAL.outline);
+        for (let k = 0; k < 3; k++) dot(lx + k, 10, PAL.outline);
+      }
+    });
+    // 걸을 때는 혀가 살짝 보인다
+    if (frame) dot(16, 6, '#e8707a');
+  }
+
   // 의자에 앉은 뒷모습: 머리만 등받이 위로 보인다
-  function drawSeated(g, x, y, look, tilt) {
+  // 꾸벅 인사하면 머리가 등받이 쪽으로 내려가 일부가 등받이에 가려진다
+  function drawSeated(g, x, y, look, tilt, pose) {
     const hx = x + 3 + tilt;
-    const hy = y - 6;
+    const hy = y - 6 + (pose && pose.bow ? pose.bow : 0);
     parts(g, [[hx, hy, 8, 7, PAL.skin]]);
     if (look.bald) {
       rect(g, hx, hy + 2, 1, 4, look.hair);
@@ -293,10 +488,11 @@
       rect(g, hx, hy + 3, 1, 2, PAL.skin);
       rect(g, hx + 7, hy + 3, 1, 2, PAL.skin);
     }
-    if (look.cap) {
-      rect(g, hx - 1, hy - 2, 10, 5, PAL.outline);
-      rect(g, hx, hy - 1, 8, 3, look.cap);
+    if (look.earring) {
+      rect(g, hx - 1, hy + 5, 1, 1, look.earring);
+      rect(g, hx + 8, hy + 5, 1, 1, look.earring);
     }
+    drawHeadwear(g, hx + 4, hy, look, 'up');
   }
 
   // 앉을 수 있는 의자·말 걸 수 있는 사람 위에 띄우는 작은 화살표. (x, top) 은 화살표 끝 바로 위.
@@ -390,6 +586,9 @@
 
     // 다른 접속자. 서버가 0.1초마다 보내는 위치(tx, ty)를 향해 부드럽게 따라간다.
     const remotes = new Map();
+
+    // 강아지. 움직임과 주인은 서버가 정하고, 화면은 받은 위치를 사람처럼 부드럽게 따라간다.
+    const dog = { active: false, x: 160, y: 150, tx: 160, ty: 150, dir: 'left', moving: false, owner: null, frame: 0, anim: 0 };
 
     // 상점 주인. 모든 접속자에게 같은 자리에 보이는 고정 NPC 라 서버와 주고받지 않는다.
     const shopkeeper = {
@@ -613,6 +812,7 @@
       fade = Math.max(0, fade - dt);
       updatePlayer(dt);
       for (const r of remotes.values()) updateRemote(r, dt);
+      if (dog.active) updateRemote(dog, dt);
     }
 
     function render() {
@@ -620,6 +820,7 @@
       g.drawImage(area.bg, 0, 0);
 
       const list = inExchange() ? statics.slice() : [];
+      const nowMs = performance.now();
       const people = nearby();
       if (player.active) people.push(player);
       if (inExchange()) people.push(shopkeeper);
@@ -628,11 +829,17 @@
       for (const p of people) {
         if (p.seat) {
           const s = p.seat;
-          list.push({ key: s.y + CHAIR_H - 0.5, draw: () => drawSeated(g, s.x, s.y, p.look, 0) });
+          list.push({ key: s.y + CHAIR_H - 0.5, draw: () => drawSeated(g, s.x, s.y, p.look, 0, poseOf(p, nowMs)) });
           continue;
         }
         const px = Math.round(p.x), py = Math.round(p.y);
-        list.push({ key: py, draw: () => drawPerson(g, px, py, p.look, p.dir, p.frame) });
+        list.push({ key: py, draw: () => drawPerson(g, px, py, p.look, p.dir, p.frame, poseOf(p, nowMs)) });
+      }
+      if (dog.active && inExchange()) {
+        const dx = Math.round(dog.x), dy = Math.round(dog.y);
+        // 주인이 있으면 꼬리를 빨리 흔든다
+        const wag = Math.floor(nowMs / (dog.owner ? 150 : 450)) % 2;
+        list.push({ key: dy, draw: () => drawDog(g, dx, dy, dog.dir, dog.frame, wag) });
       }
       list.sort((a, b) => a.key - b.key);
       for (const it of list) it.draw();
@@ -672,7 +879,7 @@
         if (s.y !== seat.y || s.x + CHAIR_W < sx || s.x > sx + sw) continue;
         const x = s.x - sx;
         const y = s.y + oy;
-        if (s.occupant) drawSeated(sg, x, y, s.occupant.look, 0);
+        if (s.occupant) drawSeated(sg, x, y, s.occupant.look, 0, poseOf(s.occupant, performance.now()));
         sg.drawImage(chairImg, x, y);
       }
 
@@ -694,8 +901,9 @@
       list.sort((a, b) => a.key - b.key);
       for (const { p, x } of list) {
         // 띠 안에서 머리 꼭대기가 2번째 줄에 오게 맞춘다(내 줄에 앉은 머리와 같은 높이)
-        if (p.seat) drawSeated(sg, x - CHAIR_W / 2, 8, p.look, 0);
-        else drawPerson(sg, x, 19, p.look, p.dir, p.frame);
+        const pose = poseOf(p, performance.now());
+        if (p.seat) drawSeated(sg, x - CHAIR_W / 2, 8, p.look, 0, pose);
+        else drawPerson(sg, x, 19, p.look, p.dir, p.frame, pose);
       }
     }
 
@@ -721,6 +929,8 @@
     //   who: 'me', 'shop'(상점 주인) 또는 접속자 id
     let stripSx = 0;
     function anchor(who) {
+      // 강아지는 객장에만 있고, 키가 작아 앉은 화면 띠에는 그리지 않는다
+      if (who === 'dog') return dog.active && inExchange() && !player.seat ? { x: dog.x, y: dog.y - 12 } : null;
       const p = who === 'shop' ? (inExchange() ? shopkeeper : null)
         : who === 'me' ? (player.active ? player : null)
         : remotes.get(who);
@@ -757,19 +967,33 @@
       r.seat = null;
     }
 
+    function setEquip(p, ids) {
+      p.equip = Array.isArray(ids) ? ids.slice() : [];
+      p.look = PX.items.applyEquip(p.baseLook || p.look, p.equip);
+    }
+
     const net = {
       // 입장 확인. 재접속일 수도 있으므로 다른 사람·의자 상태를 모두 새로 받는다.
       welcome(me, users) {
         for (const s of seats) s.occupant = null;
         remotes.clear();
         const map = areas[me.map] ? me.map : 'exchange';
-        Object.assign(player, { active: true, look: me.look, x: me.x, y: me.y, dir: me.dir, seat: null, route: null, map });
+        Object.assign(player, { active: true, x: me.x, y: me.y, dir: me.dir, seat: null, route: null, map });
         area = areas[map];
+        // 외형 = 서버가 정한 기본 외형 + 착용 아이템
+        player.baseLook = me.look;
+        setEquip(player, me.equip);
         for (const u of users) net.add(u);
       },
 
+      equip(id, ids) {
+        const r = remotes.get(id);
+        if (r) setEquip(r, ids);
+      },
+
       add(u) {
-        const r = { id: u.id, name: u.name, look: u.look, map: u.map || 'exchange', x: u.x, y: u.y, tx: u.x, ty: u.y, dir: u.dir, moving: !!u.moving, frame: 0, anim: 0, seat: null };
+        const r = { id: u.id, name: u.name, baseLook: u.look, map: u.map || 'exchange', x: u.x, y: u.y, tx: u.x, ty: u.y, dir: u.dir, moving: !!u.moving, frame: 0, anim: 0, seat: null };
+        setEquip(r, u.equip);
         remotes.set(u.id, r);
         if (u.seat != null) occupy(r, u.seat);
       },
@@ -824,6 +1048,23 @@
         return [...remotes.values()].map(r => [r.id, r.name]);
       },
 
+      // 강아지 상태. 처음 받을 때는 그 자리에 바로 놓는다. 반환값: 주인이 바뀌었는지.
+      dog(d) {
+        if (!d) return false;
+        const changed = d.owner !== dog.owner;
+        if (!dog.active) {
+          dog.x = d.x;
+          dog.y = d.y;
+          dog.active = true;
+        }
+        dog.tx = d.x;
+        dog.ty = d.y;
+        dog.dir = d.dir;
+        dog.moving = !!d.moving;
+        dog.owner = d.owner;
+        return changed;
+      },
+
       get count() {
         return remotes.size + (player.active ? 1 : 0);
       }
@@ -837,13 +1078,47 @@
       if (!v) shopkeeper.dir = 'down';
     }
 
+    // 인벤토리에서 갈아입었을 때. 입장 전이면 기본 외형이 없으니 목록만 기억해 둔다.
+    function setMyEquip(ids) {
+      if (player.baseLook) setEquip(player, ids);
+      else player.equip = ids.slice();
+    }
+
+    // ---------- 감정표현 ----------
+
+    // 꾸벅 인사 순서: 반쯤 숙임 → 끝까지 숙여 잠시 멈춤 → 반쯤 → 바로 섬
+    const EMOTE_MS = { bow: 1400 };
+    const BOW_STEPS = [[150, 1], [950, 2], [1150, 1]];
+
+    // who: 'me' 또는 접속자 id. 같은 사람이 다시 하면 처음부터 다시 한다.
+    function playEmote(who, type) {
+      const p = who === 'me' ? player : remotes.get(who);
+      if (!p || !EMOTE_MS[type]) return;
+      const now = performance.now();
+      p.emote = { type, start: now, until: now + EMOTE_MS[type] };
+    }
+
+    function poseOf(p, now) {
+      const e = p.emote;
+      if (!e || now >= e.until) return null;
+      if (e.type === 'bow') {
+        const t = now - e.start;
+        const step = BOW_STEPS.find(([end]) => t < end);
+        return step ? { bow: step[1] } : null;
+      }
+      return null;
+    }
+
     return {
-      update, render, prompt, anchor, releaseKeys, setLocked, player, hooks, net,
+      update, render, prompt, anchor, releaseKeys, setLocked, setMyEquip, playEmote, player, hooks, net,
       shopkeeperName: shopkeeper.name,
       get map() { return player.map; },
       get seatedView() { return !!player.seat; }
     };
   }
+
+  // 인벤토리 미리보기가 같은 그림을 쓰도록 내보낸다
+  PX.sprites = { drawPerson, drawDog };
 
   PX.createScene = createScene;
 })();

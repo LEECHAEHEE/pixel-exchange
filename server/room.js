@@ -2,17 +2,26 @@
 // 위치는 클라이언트가 보낸 값을 범위만 확인해 믿고, 의자는 서버가 주인을 정한다(동시에 앉기 방지).
 'use strict';
 
+const { createDog } = require('./dog');
+
 // public/js/scene.js 의 의자 배치(3줄 × 14개)와 맞춰야 한다
 const SEAT_COUNT = 42;
 // 장소마다 걸을 수 있는 모양이 달라 서버는 화면(320×180) 안인지만 본다
 const BOUNDS = { x0: 0, y0: 0, x1: 319, y1: 179 };
 // 객장(의자가 있는 곳)과 public/js/places.js 의 장소들
 const MAPS = new Set(['exchange', 'crossroad', 'racetrack']);
+// 객장 바닥(강아지가 다니는 곳). public/js/scene.js 의 객장 walk 와 맞춘다.
+const FLOOR = { x0: 4, y0: 120, x1: 316, y1: 179 };
 const DIRS = new Set(['up', 'down', 'left', 'right']);
+// 감정표현 종류. 화면(emote.js·scene.js)에 새 표현을 넣으면 여기도 추가한다.
+const EMOTES = new Set(['bow']);
+const EMOTE_GAP_MS = 500;
 
 const NAME_MAX = 12;
 const CHAT_MAX = 60;
 const CHAT_GAP_MS = 300;
+// 채팅 기록은 서버 메모리에만 둔다. 서버가 꺼지면 사라진다.
+const HISTORY_MAX = 100;
 const BROADCAST_MS = 100;
 
 const HAIRS = ['#2a2220', '#3b2a20', '#5b3a22', '#8c8c8c', '#d9d9d9', '#a0522d', '#1f2a44'];
@@ -44,6 +53,18 @@ function cleanText(s, max) {
   return s.replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim().slice(0, max);
 }
 
+// 착용 목록은 아이템 id 문자열 배열. 서버는 목록(카탈로그)을 모르므로 모양만 확인하고 그대로 전달한다.
+const EQUIP_MAX = 8;
+function cleanEquip(v) {
+  if (!Array.isArray(v)) return [];
+  const out = [];
+  for (const id of v) {
+    if (typeof id === 'string' && /^[a-z0-9-]{1,32}$/.test(id) && !out.includes(id)) out.push(id);
+    if (out.length >= EQUIP_MAX) break;
+  }
+  return out;
+}
+
 function clampNum(v, lo, hi) {
   return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : null;
 }
@@ -52,11 +73,13 @@ function createRoom({ market, race }) {
   const users = new Map();
   const seats = new Array(SEAT_COUNT).fill(null);
   const dirty = new Set();
+  const history = [];
+  const dog = createDog({ users, broadcast, bounds: FLOOR });
   let nextId = 1;
   let guestNo = 1;
 
   function publicOf(u) {
-    return { id: u.id, name: u.name, look: u.look, map: u.map, x: u.x, y: u.y, dir: u.dir, moving: u.moving, seat: u.seat };
+    return { id: u.id, name: u.name, look: u.look, equip: u.equip, map: u.map, x: u.x, y: u.y, dir: u.dir, moving: u.moving, seat: u.seat };
   }
 
   // 같은 메시지를 접속자 수만큼 직렬화하지 않도록 한 번만 문자열로 만든다
@@ -71,11 +94,11 @@ function createRoom({ market, race }) {
     if (u.ws.readyState === 1) u.ws.send(JSON.stringify(msg));
   }
 
-  function join(ws, rawName) {
+  function join(ws, rawName, rawEquip) {
     const id = String(nextId++);
     const name = cleanText(rawName, NAME_MAX) || '손님' + guestNo++;
     const u = {
-      id, ws, name, look: randomLook(), map: 'exchange',
+      id, ws, name, look: randomLook(), equip: cleanEquip(rawEquip), map: 'exchange',
       x: 150 + Math.random() * 20, y: 170 + Math.random() * 6, dir: 'up', moving: false,
       seat: null, lastChat: 0
     };
@@ -84,6 +107,8 @@ function createRoom({ market, race }) {
       t: 'welcome',
       me: publicOf(u),
       users: [...users.values()].filter(o => o !== u).map(publicOf),
+      history,
+      dog: dog.snapshot(),
       market: market.snapshot(),
       race: race.snapshot()
     });
@@ -97,6 +122,7 @@ function createRoom({ market, race }) {
     if (u.seat !== null) seats[u.seat] = null;
     race.leave(u.id);
     users.delete(u.id);
+    dog.forget(u.id);
     dirty.delete(u.id);
     broadcast({ t: 'leave', id: u.id });
     console.log(`[room] leave id=${u.id} users=${users.size}`);
@@ -163,13 +189,28 @@ function createRoom({ market, race }) {
         send(u, { t: 'raceVote', horse: race.myVote(u.id), reason: r.ok ? null : r.reason });
         return;
       }
+      case 'emote': {
+        const now = Date.now();
+        if (!EMOTES.has(msg.emote) || now - (u.lastEmote || 0) < EMOTE_GAP_MS) return;
+        u.lastEmote = now;
+        broadcast({ t: 'emote', id: u.id, emote: msg.emote });
+        return;
+      }
+      case 'equip': {
+        u.equip = cleanEquip(msg.equip);
+        broadcast({ t: 'equip', id: u.id, equip: u.equip });
+        return;
+      }
       case 'chat': {
         const now = Date.now();
         if (now - u.lastChat < CHAT_GAP_MS) return;
         const text = cleanText(msg.text, CHAT_MAX);
         if (!text) return;
         u.lastChat = now;
-        broadcast({ t: 'chat', id: u.id, text });
+        // 나간 사람의 채팅도 기록에 이름이 남도록 닉네임을 함께 저장한다
+        history.push({ name: u.name, text, at: now });
+        if (history.length > HISTORY_MAX) history.shift();
+        broadcast({ t: 'chat', id: u.id, name: u.name, text, at: now });
         return;
       }
     }
@@ -177,6 +218,7 @@ function createRoom({ market, race }) {
 
   // 위치는 0.1초마다 바뀐 사람만 모아 한 번에 보낸다. 접속자가 많아도 메시지 수가 늘지 않는다.
   setInterval(() => {
+    dog.tick(BROADCAST_MS / 1000);
     if (dirty.size === 0) return;
     const list = [];
     for (const id of dirty) {
