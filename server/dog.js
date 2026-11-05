@@ -4,10 +4,13 @@
 // 누군가 강아지 근처로 '들어오면' 그 사람이 주인이 되고, 강아지는 주인 뒤를 따라간다.
 // 근처에 계속 서 있는 것만으로는 바뀌지 않는다(주인과 나란히 선 사람과 1초마다 주인이 오가는 것을 막는다).
 // 주인이 바뀐 뒤 1초가 지나야 다시 바뀔 수 있다.
+// 주인이 10초 동안 움직이지 않으면(앉아 있는 것 포함) 주인을 버리고 다시 돌아다닌다.
+// 10초 넘게 가만히 있는 사람은 강아지가 옆을 지나가도 주인이 되지 않는다(버린 주인을 곧바로 다시 고르지 않게).
 'use strict';
 
 const MEET_PX = 12;
 const SWITCH_GAP_MS = 1000;
+const IDLE_MS = 10000;
 const WANDER_SPEED = 25;
 const FOLLOW_SPEED = 62;
 const FOLLOW_GAP = 10;
@@ -35,8 +38,23 @@ function createDog({ users, broadcast, bounds }) {
   let wait = 1;
   let sent = '';
   const near = new Set();
-  // 1초 제한은 tick 으로 흐른 시간으로 잰다(실제 시계 대신 써서 시험에서도 같은 결과가 난다)
+  // 사람마다 마지막으로 위치가 바뀐 때. 10초 가만히 있는지 판단한다.
+  const lastMove = new Map();
+  // 1초·10초 제한은 tick 으로 흐른 시간으로 잰다(실제 시계 대신 써서 시험에서도 같은 결과가 난다)
   let clock = 0;
+
+  function trackMoves(now) {
+    for (const id of [...lastMove.keys()]) if (!users.has(id)) lastMove.delete(id);
+    for (const u of users.values()) {
+      const m = lastMove.get(u.id);
+      if (!m || m.x !== u.x || m.y !== u.y) lastMove.set(u.id, { x: u.x, y: u.y, t: now });
+    }
+  }
+
+  function isIdle(id, now) {
+    const m = lastMove.get(id);
+    return !!m && now - m.t >= IDLE_MS;
+  }
 
   function clamp(v, lo, hi) {
     return Math.min(hi, Math.max(lo, v));
@@ -77,6 +95,7 @@ function createDog({ users, broadcast, bounds }) {
       const isNear = Math.hypot(u.x - dog.x, u.y - dog.y) < MEET_PX;
       if (isNear && !near.has(u.id)) {
         near.add(u.id);
+        if (isIdle(u.id, now)) continue;
         const free = !dog.owner;
         const canSwitch = dog.owner !== u.id && now - dog.ownerSince >= SWITCH_GAP_MS;
         if (free || canSwitch) setOwner(u.id, now);
@@ -90,6 +109,13 @@ function createDog({ users, broadcast, bounds }) {
     clock += dt * 1000;
     const now = clock;
     if (dog.owner && !users.has(dog.owner)) dog.owner = null;
+    trackMoves(now);
+    // 주인이 10초 동안 가만히 있으면 버리고 바로 돌아다니기 시작한다
+    if (dog.owner && isIdle(dog.owner, now)) {
+      dog.owner = null;
+      path = [];
+      wait = 0;
+    }
     checkOwners(now);
 
     if (dog.owner) {
@@ -133,6 +159,7 @@ function createDog({ users, broadcast, bounds }) {
 
   function forget(id) {
     near.delete(id);
+    lastMove.delete(id);
     if (dog.owner === id) dog.owner = null;
   }
 
