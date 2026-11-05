@@ -588,7 +588,9 @@
     const remotes = new Map();
 
     // 강아지. 움직임과 주인은 서버가 정하고, 화면은 받은 위치를 사람처럼 부드럽게 따라간다.
-    const dog = { active: false, x: 160, y: 150, tx: 160, ty: 150, dir: 'left', moving: false, owner: null, frame: 0, anim: 0 };
+    // map 은 강아지가 있는 장소로, 나와 같은 장소일 때만 그린다.
+    const dog = { active: false, map: 'exchange', x: 160, y: 150, tx: 160, ty: 150, dir: 'left', moving: false, owner: null, frame: 0, anim: 0 };
+    const dogHere = () => dog.active && dog.map === player.map;
 
     // 상점 주인. 모든 접속자에게 같은 자리에 보이는 고정 NPC 라 서버와 주고받지 않는다.
     const shopkeeper = {
@@ -835,7 +837,7 @@
         const px = Math.round(p.x), py = Math.round(p.y);
         list.push({ key: py, draw: () => drawPerson(g, px, py, p.look, p.dir, p.frame, poseOf(p, nowMs)) });
       }
-      if (dog.active && inExchange()) {
+      if (dogHere()) {
         const dx = Math.round(dog.x), dy = Math.round(dog.y);
         // 주인이 있으면 꼬리를 빨리 흔든다
         const wag = Math.floor(nowMs / (dog.owner ? 150 : 450)) % 2;
@@ -929,8 +931,8 @@
     //   who: 'me', 'shop'(상점 주인) 또는 접속자 id
     let stripSx = 0;
     function anchor(who) {
-      // 강아지는 객장에만 있고, 키가 작아 앉은 화면 띠에는 그리지 않는다
-      if (who === 'dog') return dog.active && inExchange() && !player.seat ? { x: dog.x, y: dog.y - 12 } : null;
+      // 강아지는 키가 작아 앉은 화면 띠에는 그리지 않는다
+      if (who === 'dog') return dogHere() && !player.seat ? { x: dog.x, y: dog.y - 12 } : null;
       const p = who === 'shop' ? (inExchange() ? shopkeeper : null)
         : who === 'me' ? (player.active ? player : null)
         : remotes.get(who);
@@ -1048,13 +1050,15 @@
         return [...remotes.values()].map(r => [r.id, r.name]);
       },
 
-      // 강아지 상태. 처음 받을 때는 그 자리에 바로 놓는다. 반환값: 주인이 바뀌었는지.
+      // 강아지 상태. 처음 받을 때와 장소를 옮겼을 때는 그 자리에 바로 놓는다. 반환값: 주인이 바뀌었는지.
       dog(d) {
         if (!d) return false;
         const changed = d.owner !== dog.owner;
-        if (!dog.active) {
+        const map = d.map || 'exchange';
+        if (!dog.active || map !== dog.map) {
           dog.x = d.x;
           dog.y = d.y;
+          dog.map = map;
           dog.active = true;
         }
         dog.tx = d.x;

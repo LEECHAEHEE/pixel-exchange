@@ -10,8 +10,6 @@ const SEAT_COUNT = 42;
 const BOUNDS = { x0: 0, y0: 0, x1: 319, y1: 179 };
 // 객장(의자가 있는 곳)과 public/js/places.js 의 장소들
 const MAPS = new Set(['exchange', 'crossroad', 'racetrack']);
-// 객장 바닥(강아지가 다니는 곳). public/js/scene.js 의 객장 walk 와 맞춘다.
-const FLOOR = { x0: 4, y0: 120, x1: 316, y1: 179 };
 const DIRS = new Set(['up', 'down', 'left', 'right']);
 // 감정표현 종류. 화면(emote.js·scene.js)에 새 표현을 넣으면 여기도 추가한다.
 const EMOTES = new Set(['bow']);
@@ -74,7 +72,7 @@ function createRoom({ market, race }) {
   const seats = new Array(SEAT_COUNT).fill(null);
   const dirty = new Set();
   const history = [];
-  const dog = createDog({ users, broadcast, bounds: FLOOR });
+  const dog = createDog({ users, broadcast });
   let nextId = 1;
   let guestNo = 1;
 

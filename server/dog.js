@@ -1,10 +1,11 @@
-// 객장 강아지. 모든 접속자에게 같은 강아지가 보이도록 서버가 움직임과 주인을 정한다.
+// 강아지. 모든 접속자에게 같은 강아지가 보이도록 서버가 움직임·주인·있는 장소를 정한다.
 //
-// 주인이 없으면 맨 앞 통로와 가운데 통로를 오가며 돌아다닌다.
-// 누군가 강아지 근처로 '들어오면' 그 사람이 주인이 되고, 강아지는 주인 뒤를 따라간다.
+// 주인이 없으면 지금 장소의 통로를 오가며 돌아다닌다(처음에는 객장).
+// 같은 장소에서 누군가 강아지 근처로 '들어오면' 그 사람이 주인이 되고, 강아지는 주인 뒤를 따라간다.
+// 주인이 다른 장소로 옮기면 강아지도 함께 옮겨 간다.
 // 근처에 계속 서 있는 것만으로는 바뀌지 않는다(주인과 나란히 선 사람과 1초마다 주인이 오가는 것을 막는다).
 // 주인이 바뀐 뒤 1초가 지나야 다시 바뀔 수 있다.
-// 주인이 10초 동안 움직이지 않으면(앉아 있는 것 포함) 주인을 버리고 다시 돌아다닌다.
+// 주인이 10초 동안 움직이지 않으면(앉아 있는 것 포함) 주인을 버리고 그 장소에서 다시 돌아다닌다.
 // 10초 넘게 가만히 있는 사람은 강아지가 옆을 지나가도 주인이 되지 않는다(버린 주인을 곧바로 다시 고르지 않게).
 'use strict';
 
@@ -14,31 +15,60 @@ const IDLE_MS = 10000;
 const WANDER_SPEED = 25;
 const FOLLOW_SPEED = 62;
 const FOLLOW_GAP = 10;
-
-// 의자 사이를 지나지 않도록 돌아다니는 곳을 두 칸으로 나눈다. 두 칸은 (160, 124) 에서 만난다.
-// public/js/scene.js 의 의자 배치와 맞춰야 한다.
-const ZONES = [
-  { x0: 20, x1: 300, y0: 121, y1: 128 },   // 맨 앞 통로
-  { x0: 152, x1: 168, y0: 121, y1: 178 }   // 가운데 카펫 통로
-];
-const JUNCTION = { x: 160, y: 124 };
 const BEHIND = { up: [0, 8], down: [0, -8], left: [FOLLOW_GAP, 0], right: [-FOLLOW_GAP, 0] };
+
+// 장소마다
+//   walk     따라갈 때 강아지가 설 수 있는 곳(주인 뒤 자리가 벽이면 이 안으로 당긴다)
+//   zones    혼자 돌아다니는 통로. 서로 다른 통로로 갈 때는 junction 을 거쳐 간다.
+// 객장은 public/js/scene.js 의 의자 배치, 나머지는 public/js/places.js 의 walk·blocks 와 맞춰야 한다.
+const MAPS = {
+  exchange: {
+    walk: [{ x0: 4, y0: 120, x1: 316, y1: 179 }],
+    zones: [
+      { x0: 20, x1: 300, y0: 121, y1: 128 },   // 맨 앞 통로
+      { x0: 152, x1: 168, y0: 121, y1: 178 }   // 가운데 카펫 통로
+    ],
+    junction: { x: 160, y: 124 }
+  },
+  crossroad: {
+    walk: [
+      { x0: 37, y0: 80, x1: 283, y1: 116 },    // 가로 복도(양쪽 공사 중 가림막 안쪽)
+      { x0: 140, y0: 2, x1: 180, y1: 168 }     // 세로 복도(출구 줄·아래 화분 앞까지)
+    ],
+    zones: [
+      { x0: 44, x1: 276, y0: 86, y1: 112 },
+      { x0: 150, x1: 170, y0: 10, y1: 165 }
+    ],
+    junction: { x: 160, y: 98 }
+  },
+  racetrack: {
+    walk: [
+      { x0: 22, y0: 28, x1: 298, y1: 60 },     // 관람석 앞 바닥
+      { x0: 150, y0: 16, x1: 170, y1: 30 }     // 입구
+    ],
+    zones: [{ x0: 30, x1: 290, y0: 32, y1: 56 }],
+    junction: null
+  }
+};
 
 function rand(a, b) {
   return a + Math.random() * (b - a);
 }
 
-function zoneOf(x, y) {
-  return y > ZONES[0].y1 && x >= ZONES[1].x0 - 2 && x <= ZONES[1].x1 + 2 ? 1 : 0;
+function inRect(r, x, y) {
+  return x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1;
 }
 
-// 강아지는 객장에만 있다. 다른 장소(사거리·경마장)에 있는 사람은 주인이 될 수 없다.
-function inExchange(u) {
-  return !u.map || u.map === 'exchange';
+function clamp(v, lo, hi) {
+  return Math.min(hi, Math.max(lo, v));
 }
 
-function createDog({ users, broadcast, bounds }) {
-  const dog = { x: 160, y: 150, dir: 'left', moving: false, owner: null, ownerSince: -SWITCH_GAP_MS };
+function mapOf(u) {
+  return MAPS[u.map] ? u.map : 'exchange';
+}
+
+function createDog({ users, broadcast }) {
+  const dog = { map: 'exchange', x: 160, y: 150, dir: 'left', moving: false, owner: null, ownerSince: -SWITCH_GAP_MS };
   let path = [];
   let wait = 1;
   let sent = '';
@@ -61,15 +91,23 @@ function createDog({ users, broadcast, bounds }) {
     return !!m && now - m.t >= IDLE_MS;
   }
 
-  function clamp(v, lo, hi) {
-    return Math.min(hi, Math.max(lo, v));
+  function planWander() {
+    const m = MAPS[dog.map];
+    const z = m.zones.length > 1 && Math.random() >= 0.65 ? m.zones[1] : m.zones[0];
+    const t = { x: rand(z.x0, z.x1), y: rand(z.y0, z.y1) };
+    // 한 통로 안에서 갈 수 있으면 곧장, 아니면 통로가 만나는 곳을 거쳐 간다
+    const direct = !m.junction || m.zones.some(r => inRect(r, dog.x, dog.y) && inRect(r, t.x, t.y));
+    path = direct ? [t] : [m.junction, t];
   }
 
-  function planWander() {
-    const z = ZONES[Math.random() < 0.65 ? 0 : 1];
-    const t = { x: rand(z.x0, z.x1), y: rand(z.y0, z.y1) };
-    // 다른 칸으로 갈 때는 두 칸이 만나는 곳을 거쳐 간다
-    path = zoneOf(dog.x, dog.y) === zoneOf(t.x, t.y) ? [t] : [JUNCTION, t];
+  // 주인 뒤 자리. 벽 너머면 주인이 서 있는 칸 안으로 당긴다.
+  function followTarget(o) {
+    const [ox, oy] = BEHIND[o.dir] || [0, 0];
+    const tx = o.x + ox, ty = o.y + oy;
+    const walk = MAPS[dog.map].walk;
+    if (walk.some(r => inRect(r, tx, ty))) return [tx, ty];
+    const r = walk.find(w => inRect(w, o.x, o.y)) || walk[0];
+    return [clamp(tx, r.x0, r.x1), clamp(ty, r.y0, r.y1)];
   }
 
   // 한 걸음 이동. 도착하면 true.
@@ -97,7 +135,7 @@ function createDog({ users, broadcast, bounds }) {
   function checkOwners(now) {
     for (const id of [...near]) if (!users.has(id)) near.delete(id);
     for (const u of users.values()) {
-      const isNear = inExchange(u) && Math.hypot(u.x - dog.x, u.y - dog.y) < MEET_PX;
+      const isNear = mapOf(u) === dog.map && Math.hypot(u.x - dog.x, u.y - dog.y) < MEET_PX;
       if (isNear && !near.has(u.id)) {
         near.add(u.id);
         if (isIdle(u.id, now)) continue;
@@ -113,8 +151,7 @@ function createDog({ users, broadcast, bounds }) {
   function tick(dt) {
     clock += dt * 1000;
     const now = clock;
-    // 주인이 나갔거나 객장을 떠나면 다시 혼자 돌아다닌다
-    if (dog.owner && (!users.has(dog.owner) || !inExchange(users.get(dog.owner)))) dog.owner = null;
+    if (dog.owner && !users.has(dog.owner)) dog.owner = null;
     trackMoves(now);
     // 주인이 10초 동안 가만히 있으면 버리고 바로 돌아다니기 시작한다
     if (dog.owner && isIdle(dog.owner, now)) {
@@ -122,13 +159,25 @@ function createDog({ users, broadcast, bounds }) {
       path = [];
       wait = 0;
     }
+
+    // 주인이 다른 장소로 옮겼으면 강아지도 주인 뒤로 옮겨 간다.
+    // 옮긴 곳 근처에 서 있던 사람은 '이미 근처'로 쳐서, 도착하자마자 주인을 빼앗지 않게 한다.
+    if (dog.owner) {
+      const o = users.get(dog.owner);
+      if (mapOf(o) !== dog.map) {
+        dog.map = mapOf(o);
+        [dog.x, dog.y] = followTarget(o);
+        path = [];
+        near.clear();
+        for (const u of users.values()) {
+          if (mapOf(u) === dog.map && Math.hypot(u.x - dog.x, u.y - dog.y) < MEET_PX) near.add(u.id);
+        }
+      }
+    }
     checkOwners(now);
 
     if (dog.owner) {
-      const o = users.get(dog.owner);
-      const [ox, oy] = BEHIND[o.dir] || [0, 0];
-      const tx = clamp(o.x + ox, bounds.x0, bounds.x1);
-      const ty = clamp(o.y + oy, bounds.y0, bounds.y1);
+      const [tx, ty] = followTarget(users.get(dog.owner));
       // 주인 바로 뒤에 붙으면 멈춘다
       dog.moving = Math.hypot(tx - dog.x, ty - dog.y) > 3;
       if (dog.moving) stepTo(tx, ty, FOLLOW_SPEED, dt);
@@ -146,7 +195,7 @@ function createDog({ users, broadcast, bounds }) {
 
     // 바뀐 것이 있을 때만 보낸다
     const msg = snapshot();
-    const key = `${msg.x},${msg.y},${msg.dir},${msg.moving},${msg.owner}`;
+    const key = `${msg.map},${msg.x},${msg.y},${msg.dir},${msg.moving},${msg.owner}`;
     if (key !== sent) {
       sent = key;
       broadcast(Object.assign({ t: 'dog' }, msg));
@@ -155,6 +204,7 @@ function createDog({ users, broadcast, bounds }) {
 
   function snapshot() {
     return {
+      map: dog.map,
       x: Math.round(dog.x * 10) / 10,
       y: Math.round(dog.y * 10) / 10,
       dir: dog.dir,
