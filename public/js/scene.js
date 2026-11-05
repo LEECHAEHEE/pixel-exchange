@@ -206,16 +206,84 @@
       [x - 4, y - 17, 8, 7, PAL.skin]
     ];
     parts(g, p);
-    rect(g, x - 3, y - 2 - lUp, 3, 1, PAL.shoe);
-    rect(g, x + 1, y - 2 - rUp, 3, 1, PAL.shoe);
 
-    // 팔
+    // 하의 무늬: 반바지(무릎 아래 맨살), 체크
+    if (look.shorts) {
+      rect(g, x - 3, y - 3, 3, 1, PAL.skin);
+      rect(g, x + 1, y - 3, 3, 1, PAL.skin);
+    }
+    if (look.check) {
+      rect(g, x - 3, y - 4, 1, 1, look.check);
+      rect(g, x - 1, y - 3, 1, 1, look.check);
+      rect(g, x + 1, y - 4, 1, 1, look.check);
+      rect(g, x + 3, y - 3, 1, 1, look.check);
+    }
+    if (look.stripe) {
+      rect(g, x - 3, y - 4, 1, 2, look.stripe);
+      rect(g, x + 3, y - 4, 1, 2, look.stripe);
+    }
+
+    const shoe = look.shoes || PAL.shoe;
+    rect(g, x - 3, y - 2 - lUp, 3, 1, shoe);
+    rect(g, x + 1, y - 2 - rUp, 3, 1, shoe);
+    // 슬리퍼는 발가락이 보인다
+    if (look.slipper) {
+      rect(g, x - 2, y - 2 - lUp, 1, 1, PAL.skin);
+      rect(g, x + 2, y - 2 - rUp, 1, 1, PAL.skin);
+    }
+
+    // 상의 위에 덧그리는 것: 조끼, 넥타이, 가슴 무늬, 트레이닝 옆줄
+    if (look.vest) {
+      if (dir === 'down') {
+        rect(g, x - 4, y - 10, 3, 6, look.vest);
+        rect(g, x + 1, y - 10, 3, 6, look.vest);
+      } else {
+        rect(g, x - 4, y - 10, 8, 6, look.vest);
+      }
+    }
+    if (look.tie && dir === 'down') {
+      rect(g, x - 1, y - 10, 2, 5, look.tie);
+      rect(g, x - 1, y - 6, 1, 1, look.tie);
+    }
+    if (look.print && dir === 'down') {
+      for (const [dx, dy] of [[-3, -9], [-1, -8], [1, -9], [2, -7], [-2, -6], [0, -7]]) rect(g, x + dx, y + dy, 1, 1, look.print);
+    }
+    if (look.stripe && dir !== 'left' && dir !== 'right') {
+      rect(g, x - 4, y - 10, 1, 6, look.stripe);
+      rect(g, x + 3, y - 10, 1, 6, look.stripe);
+    }
+
+    // 한벌옷 치마: 허리선 아래로 넓게 퍼지는 A라인. 주름선과 진한 밑단으로 윗옷과 구분한다.
+    // 걸을 때는 밑단의 주름 위치만 한 칸씩 바뀌어 흔들려 보인다.
+    if (look.skirt) {
+      const lo = look.skirtLo || look.skirt;
+      rect(g, x - 5, y - 5, 10, 1, PAL.outline);
+      rect(g, x - 6, y - 4, 12, 1, PAL.outline);
+      rect(g, x - 7, y - 3, 14, 2, PAL.outline);
+      rect(g, x - 4, y - 6, 8, 1, lo);              // 허리선
+      rect(g, x - 4, y - 5, 8, 1, look.skirt);
+      rect(g, x - 5, y - 4, 10, 1, look.skirt);
+      rect(g, x - 6, y - 3, 12, 1, look.skirt);
+      rect(g, x - 6, y - 2, 12, 1, lo);             // 밑단
+      const s = frame === 1 ? -1 : frame === 2 ? 1 : 0;
+      for (const dx of [-3, 0, 3]) rect(g, x + dx + s, y - 3, 1, 1, lo);
+      rect(g, x - 2, y - 4, 1, 1, lo);
+      rect(g, x + 1, y - 4, 1, 1, lo);
+      // 밑단 아래로 신발만 살짝 보인다
+      rect(g, x - 3, y - 1, 2, 1, shoe);
+      rect(g, x + 1, y - 1, 2, 1, shoe);
+    }
+
+    // 팔(반지는 손끝 금색 점)
     if (dir === 'left' || dir === 'right') {
-      rect(g, x - 1, y - 9 + (frame ? 1 : 0), 2, 4, look.shirtLo || look.shirt);
-      rect(g, x - 1, y - 6 + (frame ? 1 : 0), 2, 1, PAL.skin);
+      const ay = y - 9 + (frame ? 1 : 0);
+      rect(g, x - 1, ay, 2, 4, look.shirtLo || look.shirt);
+      rect(g, x - 1, ay + 3, 2, 1, PAL.skin);
+      if (look.ring) rect(g, x, ay + 3, 1, 1, look.ring);
     } else {
       rect(g, x - 5, y - 9, 1, 4, PAL.skin);
       rect(g, x + 4, y - 9, 1, 4, PAL.skin);
+      if (look.ring) rect(g, x + 4, y - 6, 1, 1, look.ring);
     }
 
     // 상점 주인 앞치마
@@ -244,16 +312,83 @@
       rect(g, x - 3 * s - (s < 0 ? 1 : 0), hy + 4, 1, 1, PAL.eye);
     }
 
+    // 귀걸이: 귀 바로 아래 금색 점. 옆모습이면 보이는 쪽 귀에만.
+    if (look.earring) {
+      if (dir === 'left') rect(g, x + 4, hy + 5, 1, 1, look.earring);
+      else if (dir === 'right') rect(g, x - 5, hy + 5, 1, 1, look.earring);
+      else {
+        rect(g, x - 5, hy + 5, 1, 1, look.earring);
+        rect(g, x + 4, hy + 5, 1, 1, look.earring);
+      }
+    }
+
+    drawHeadwear(g, x, hy, look, dir);
+  }
+
+  // 머리에 쓰는 것. x 는 머리 가운데(머리는 x-4 ~ x+3), hy 는 머리 꼭대기 줄.
+  // 서 있는 사람과 앉은 뒷모습(dir 'up')이 함께 쓴다.
+  function drawHeadwear(g, x, hy, look, dir) {
     if (look.cap) {
       rect(g, x - 5, hy - 2, 10, 4, PAL.outline);
       rect(g, x - 4, hy - 1, 8, 3, look.cap);
-      if (dir === 'down') {
+      if (look.fedora) {
+        // 중절모: 사방으로 넓은 챙과 띠
+        rect(g, x - 7, hy + 1, 14, 2, PAL.outline);
+        rect(g, x - 6, hy + 1, 12, 1, look.capLo);
+        rect(g, x - 4, hy, 8, 1, look.fedora);
+      } else if (dir === 'down') {
         rect(g, x - 4, hy + 2, 8, 1, look.capLo);
-        rect(g, x - 1, hy, 2, 1, '#ffffff');
+        if (look.capMark === 'up') {
+          rect(g, x - 1, hy - 1, 2, 1, '#ffffff');
+          rect(g, x - 2, hy, 4, 1, '#ffffff');
+        } else if (look.capMark === 'down') {
+          rect(g, x - 2, hy - 1, 4, 1, '#ffffff');
+          rect(g, x - 1, hy, 2, 1, '#ffffff');
+        } else {
+          rect(g, x - 1, hy, 2, 1, '#ffffff');
+        }
       } else if (dir === 'left') {
         rect(g, x - 7, hy + 1, 3, 1, look.capLo);
+        if (look.capMark) rect(g, x - 3, hy, 1, 1, '#ffffff');
       } else if (dir === 'right') {
         rect(g, x + 4, hy + 1, 3, 1, look.capLo);
+        if (look.capMark) rect(g, x + 2, hy, 1, 1, '#ffffff');
+      }
+    }
+
+    if (look.crown) {
+      // 세 봉우리 왕관과 가운데 보석
+      for (const [ox, oy, w, h] of [[-5, -4, 3, 4], [-2, -5, 4, 5], [2, -4, 3, 4], [-5, -2, 10, 3]]) {
+        rect(g, x + ox, hy + oy, w, h, PAL.outline);
+      }
+      rect(g, x - 4, hy - 3, 1, 2, look.crown);
+      rect(g, x - 1, hy - 4, 2, 3, look.crown);
+      rect(g, x + 3, hy - 3, 1, 2, look.crown);
+      rect(g, x - 4, hy - 1, 8, 1, look.crown);
+      if (dir !== 'up') rect(g, x - 1, hy - 1, 2, 1, '#e0404a');
+    }
+
+    // 황소 뿔: 모자 옆에 붙어서 바깥으로 나갔다가 위로 휘어 오른다
+    if (look.horns) {
+      rect(g, x - 8, hy - 1, 4, 3, PAL.outline);
+      rect(g, x - 9, hy - 4, 3, 4, PAL.outline);
+      rect(g, x + 4, hy - 1, 4, 3, PAL.outline);
+      rect(g, x + 6, hy - 4, 3, 4, PAL.outline);
+      rect(g, x - 7, hy, 2, 1, look.horns);
+      rect(g, x - 8, hy - 3, 1, 3, look.horns);
+      rect(g, x + 5, hy, 2, 1, look.horns);
+      rect(g, x + 7, hy - 3, 1, 3, look.horns);
+    }
+
+    // 곰 귀: 머리 위 양쪽의 동그란 귀
+    if (look.bearEars) {
+      rect(g, x - 6, hy - 4, 4, 4, PAL.outline);
+      rect(g, x + 2, hy - 4, 4, 4, PAL.outline);
+      rect(g, x - 5, hy - 3, 2, 2, look.bearEars);
+      rect(g, x + 3, hy - 3, 2, 2, look.bearEars);
+      if (dir !== 'up') {
+        rect(g, x - 4, hy - 2, 1, 1, '#e8a0a0');
+        rect(g, x + 3, hy - 2, 1, 1, '#e8a0a0');
       }
     }
   }
@@ -272,10 +407,11 @@
       rect(g, hx, hy + 3, 1, 2, PAL.skin);
       rect(g, hx + 7, hy + 3, 1, 2, PAL.skin);
     }
-    if (look.cap) {
-      rect(g, hx - 1, hy - 2, 10, 5, PAL.outline);
-      rect(g, hx, hy - 1, 8, 3, look.cap);
+    if (look.earring) {
+      rect(g, hx - 1, hy + 5, 1, 1, look.earring);
+      rect(g, hx + 8, hy + 5, 1, 1, look.earring);
     }
+    drawHeadwear(g, hx + 4, hy, look, 'up');
   }
 
   // 앉을 수 있는 의자·말 걸 수 있는 사람 위에 띄우는 작은 화살표. (x, top) 은 화살표 끝 바로 위.
@@ -674,17 +810,31 @@
       r.seat = null;
     }
 
+    function setEquip(p, ids) {
+      p.equip = Array.isArray(ids) ? ids.slice() : [];
+      p.look = PX.items.applyEquip(p.baseLook || p.look, p.equip);
+    }
+
     const net = {
       // 입장 확인. 재접속일 수도 있으므로 다른 사람·의자 상태를 모두 새로 받는다.
       welcome(me, users) {
         for (const s of seats) s.occupant = null;
         remotes.clear();
-        Object.assign(player, { active: true, look: me.look, x: me.x, y: me.y, dir: me.dir, seat: null, route: null });
+        Object.assign(player, { active: true, x: me.x, y: me.y, dir: me.dir, seat: null, route: null });
+        // 외형 = 서버가 정한 기본 외형 + 착용 아이템
+        player.baseLook = me.look;
+        setEquip(player, me.equip);
         for (const u of users) net.add(u);
       },
 
+      equip(id, ids) {
+        const r = remotes.get(id);
+        if (r) setEquip(r, ids);
+      },
+
       add(u) {
-        const r = { id: u.id, name: u.name, look: u.look, x: u.x, y: u.y, tx: u.x, ty: u.y, dir: u.dir, moving: !!u.moving, frame: 0, anim: 0, seat: null };
+        const r = { id: u.id, name: u.name, baseLook: u.look, x: u.x, y: u.y, tx: u.x, ty: u.y, dir: u.dir, moving: !!u.moving, frame: 0, anim: 0, seat: null };
+        setEquip(r, u.equip);
         remotes.set(u.id, r);
         if (u.seat != null) occupy(r, u.seat);
       },
@@ -741,12 +891,21 @@
       if (!v) shopkeeper.dir = 'down';
     }
 
+    // 인벤토리에서 갈아입었을 때. 입장 전이면 기본 외형이 없으니 목록만 기억해 둔다.
+    function setMyEquip(ids) {
+      if (player.baseLook) setEquip(player, ids);
+      else player.equip = ids.slice();
+    }
+
     return {
-      update, render, prompt, anchor, releaseKeys, setLocked, player, hooks, net,
+      update, render, prompt, anchor, releaseKeys, setLocked, setMyEquip, player, hooks, net,
       shopkeeperName: shopkeeper.name,
       get seatedView() { return !!player.seat; }
     };
   }
+
+  // 인벤토리 미리보기가 같은 그림을 쓰도록 내보낸다
+  PX.sprites = { drawPerson };
 
   PX.createScene = createScene;
 })();

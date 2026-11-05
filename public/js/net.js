@@ -1,12 +1,13 @@
 // 서버 연결. 끊기면 지수 백오프로 다시 붙고, 붙을 때마다 같은 닉네임으로 다시 입장한다.
 //
 //   net.connect(name)     입장
-//   net.send(msg)         { t: 'move' | 'sit' | 'stand' | 'chat', ... }
+//   net.send(msg)         { t: 'move' | 'sit' | 'stand' | 'chat' | 'equip', ... }
 //   handlers[t](msg)      서버 메시지 종류별 처리 함수
 //   onState(state)        'connecting' | 'open' | 'closed'
+//   joinExtra()           입장 메시지에 덧붙일 값 (착용 목록 등). 재접속 때마다 다시 읽는다.
 (function () {
 
-  function createNet({ url, handlers, onState }) {
+  function createNet({ url, handlers, onState, joinExtra }) {
     let ws = null;
     let name = '';
     let retry = 0;
@@ -19,7 +20,7 @@
       ws.onopen = () => {
         retry = 0;
         onState('open');
-        ws.send(JSON.stringify({ t: 'join', name }));
+        ws.send(JSON.stringify(Object.assign({ t: 'join', name }, joinExtra ? joinExtra() : {})));
       };
 
       ws.onmessage = (ev) => {

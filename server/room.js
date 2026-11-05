@@ -10,6 +10,8 @@ const DIRS = new Set(['up', 'down', 'left', 'right']);
 const NAME_MAX = 12;
 const CHAT_MAX = 60;
 const CHAT_GAP_MS = 300;
+// 채팅 기록은 서버 메모리에만 둔다. 서버가 꺼지면 사라진다.
+const HISTORY_MAX = 100;
 const BROADCAST_MS = 100;
 
 const HAIRS = ['#2a2220', '#3b2a20', '#5b3a22', '#8c8c8c', '#d9d9d9', '#a0522d', '#1f2a44'];
@@ -41,6 +43,18 @@ function cleanText(s, max) {
   return s.replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim().slice(0, max);
 }
 
+// 착용 목록은 아이템 id 문자열 배열. 서버는 목록(카탈로그)을 모르므로 모양만 확인하고 그대로 전달한다.
+const EQUIP_MAX = 8;
+function cleanEquip(v) {
+  if (!Array.isArray(v)) return [];
+  const out = [];
+  for (const id of v) {
+    if (typeof id === 'string' && /^[a-z0-9-]{1,32}$/.test(id) && !out.includes(id)) out.push(id);
+    if (out.length >= EQUIP_MAX) break;
+  }
+  return out;
+}
+
 function clampNum(v, lo, hi) {
   return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : null;
 }
@@ -49,11 +63,12 @@ function createRoom({ market }) {
   const users = new Map();
   const seats = new Array(SEAT_COUNT).fill(null);
   const dirty = new Set();
+  const history = [];
   let nextId = 1;
   let guestNo = 1;
 
   function publicOf(u) {
-    return { id: u.id, name: u.name, look: u.look, x: u.x, y: u.y, dir: u.dir, moving: u.moving, seat: u.seat };
+    return { id: u.id, name: u.name, look: u.look, equip: u.equip, x: u.x, y: u.y, dir: u.dir, moving: u.moving, seat: u.seat };
   }
 
   // 같은 메시지를 접속자 수만큼 직렬화하지 않도록 한 번만 문자열로 만든다
@@ -68,11 +83,11 @@ function createRoom({ market }) {
     if (u.ws.readyState === 1) u.ws.send(JSON.stringify(msg));
   }
 
-  function join(ws, rawName) {
+  function join(ws, rawName, rawEquip) {
     const id = String(nextId++);
     const name = cleanText(rawName, NAME_MAX) || '손님' + guestNo++;
     const u = {
-      id, ws, name, look: randomLook(),
+      id, ws, name, look: randomLook(), equip: cleanEquip(rawEquip),
       x: 150 + Math.random() * 20, y: 170 + Math.random() * 6, dir: 'up', moving: false,
       seat: null, lastChat: 0
     };
@@ -81,6 +96,7 @@ function createRoom({ market }) {
       t: 'welcome',
       me: publicOf(u),
       users: [...users.values()].filter(o => o !== u).map(publicOf),
+      history,
       market: market.snapshot()
     });
     broadcast({ t: 'join', user: publicOf(u) }, id);
@@ -138,13 +154,21 @@ function createRoom({ market }) {
         broadcast({ t: 'stand', id: u.id, x: u.x, y: u.y, dir: u.dir });
         return;
       }
+      case 'equip': {
+        u.equip = cleanEquip(msg.equip);
+        broadcast({ t: 'equip', id: u.id, equip: u.equip });
+        return;
+      }
       case 'chat': {
         const now = Date.now();
         if (now - u.lastChat < CHAT_GAP_MS) return;
         const text = cleanText(msg.text, CHAT_MAX);
         if (!text) return;
         u.lastChat = now;
-        broadcast({ t: 'chat', id: u.id, text });
+        // 나간 사람의 채팅도 기록에 이름이 남도록 닉네임을 함께 저장한다
+        history.push({ name: u.name, text, at: now });
+        if (history.length > HISTORY_MAX) history.shift();
+        broadcast({ t: 'chat', id: u.id, name: u.name, text, at: now });
         return;
       }
     }

@@ -5,6 +5,8 @@
 //   chat.remove(who)          나간 사람의 말풍선·닉네임표 정리
 //   chat.onSend(text)         내가 입력한 채팅. main.js 가 서버로 보내도록 바꿔 끼운다.
 //   chat.update(now)          매 프레임 호출. 위치·만료 처리.
+//   chat.setLog(list)         채팅 기록 창 내용 통째로 바꾸기 [{ name, text }]
+//   chat.addLog(name, text)   채팅 기록 창에 한 줄 추가. M 키로 창을 열고 닫는다.
 //
 // who 는 'me'(내 캐릭터) 또는 접속자 id. 위치는 scene.anchor(who) 로 얻는다.
 (function () {
@@ -12,6 +14,12 @@
   // 닉네임표 높이(논리 픽셀). 말풍선은 그만큼 위로 올려 겹치지 않게 한다.
   const TAG_H = 6;
   const FADE_MS = 300;
+  // 서버가 보관하는 개수와 맞춘다
+  const LOG_MAX = 100;
+
+  function isTypingTarget(t) {
+    return t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+  }
 
   function createChat({ stage, form, input, scene, getScale, durationMs, maxLength }) {
     const layer = document.createElement('div');
@@ -109,11 +117,53 @@
       }
     }
 
+    // ---------- 채팅 기록 창 (M) ----------
+
+    const logEl = document.createElement('section');
+    logEl.className = 'chat-log';
+    logEl.hidden = true;
+    logEl.setAttribute('aria-label', '채팅 기록');
+    logEl.innerHTML = '<header class="chat-log-head">채팅 기록<span>M 닫기</span></header><ol class="chat-log-list"></ol>';
+    document.body.appendChild(logEl);
+    const logList = logEl.querySelector('ol');
+
+    function logLine(name, text) {
+      const li = document.createElement('li');
+      li.textContent = `${name} : ${text}`;
+      return li;
+    }
+
+    function scrollLogToEnd() {
+      logList.scrollTop = logList.scrollHeight;
+    }
+
+    function setLog(list) {
+      logList.replaceChildren(...list.slice(-LOG_MAX).map(m => logLine(m.name, m.text)));
+      if (!logEl.hidden) scrollLogToEnd();
+    }
+
+    function addLog(name, text) {
+      logList.appendChild(logLine(name, text));
+      while (logList.children.length > LOG_MAX) logList.firstChild.remove();
+      if (!logEl.hidden) scrollLogToEnd();
+    }
+
+    window.addEventListener('keydown', (e) => {
+      // 한/영이 한글이어도(ㅡ) 키 위치(code)로 판단한다
+      if (e.code !== 'KeyM' || e.repeat || isTypingTarget(e.target)) return;
+      logEl.hidden = !logEl.hidden;
+      if (!logEl.hidden) scrollLogToEnd();
+      e.preventDefault();
+    });
+
     const chat = {
       say,
       setName,
       remove,
       update,
+      setLog,
+      addLog,
+      get logOpen() { return !logEl.hidden; },
       onSend(text) { say('me', text); },
       get typing() { return document.activeElement === input; }
     };
