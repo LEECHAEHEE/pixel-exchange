@@ -69,7 +69,9 @@
   for (let i = 0; i < 7; i++) CHAIR_COLS.push(20 + i * 18);
   for (let i = 0; i < 7; i++) CHAIR_COLS.push(178 + i * 18);
 
-  const PLANTS = [{ x: 4 }, { x: 302 }];
+  // 오른쪽 화분 자리는 상점 주인이 쓴다
+  const PLANTS = [{ x: 4 }];
+  const SHOPKEEPER = { x: 310, y: 129 };
 
   // 발 위치 기준 충돌 영역. 의자는 등받이 위쪽과 겹쳐 서 있을 수 있게 아랫부분만 막는다.
   const BLOCKS = [];
@@ -78,6 +80,7 @@
     BLOCKS.push({ x: 176, y: y + 4, w: 128, h: 10 });
   }
   for (const p of PLANTS) BLOCKS.push({ x: p.x - 1, y: FLOOR_Y, w: 16, h: 14 });
+  BLOCKS.push({ x: SHOPKEEPER.x - 5, y: SHOPKEEPER.y - 8, w: 11, h: 9 });
   const BOUNDS = { x0: 4, y0: 120, x1: W - 4, y1: H - 1 };
   const AISLE_X = 160;
 
@@ -215,12 +218,10 @@
       rect(g, x + 4, y - 9, 1, 4, PAL.skin);
     }
 
-    if (look.paper && dir === 'down') {
-      rect(g, x - 6, y - 12, 12, 7, PAL.outline);
-      rect(g, x - 5, y - 11, 10, 5, PAL.paper);
-      rect(g, x - 4, y - 10, 3, 1, PAL.ink);
-      rect(g, x, y - 10, 4, 1, PAL.ink);
-      rect(g, x - 4, y - 8, 8, 1, PAL.ink);
+    // 상점 주인 앞치마
+    if (look.apron && dir !== 'up') {
+      rect(g, x - 3, y - 9, 6, 6, look.apron);
+      rect(g, x - 1, y - 7, 2, 1, PAL.paper);
     }
 
     // 머리카락·눈
@@ -277,10 +278,9 @@
     }
   }
 
-  // 앉을 수 있는 의자 위에 띄우는 작은 화살표
-  function drawSeatMarker(g, seat, t) {
-    const x = seat.x + 7;
-    const y = seat.y - 13 + (Math.floor(t * 3) % 2);
+  // 앉을 수 있는 의자·말 걸 수 있는 사람 위에 띄우는 작은 화살표. (x, top) 은 화살표 끝 바로 위.
+  function drawMarker(g, x, top, t) {
+    const y = top + (Math.floor(t * 3) % 2);
     rect(g, x - 3, y, 7, 1, PAL.outline);
     rect(g, x - 2, y + 1, 5, 1, PAL.signEdge);
     rect(g, x - 1, y + 2, 3, 1, PAL.signEdge);
@@ -345,8 +345,18 @@
     // 다른 접속자. 서버가 0.1초마다 보내는 위치(tx, ty)를 향해 부드럽게 따라간다.
     const remotes = new Map();
 
-    // main.js 가 서버로 보낼 수 있게 앉기·일어나기를 알려준다
-    const hooks = { onSit() {}, onStand() {} };
+    // 상점 주인. 모든 접속자에게 같은 자리에 보이는 고정 NPC 라 서버와 주고받지 않는다.
+    const shopkeeper = {
+      name: '상점 주인',
+      look: { hair: '#8c8c8c', shirt: '#d8c79a', shirtLo: '#b8a779', pants: '#4a4a55', apron: '#6b3f22' },
+      x: SHOPKEEPER.x, y: SHOPKEEPER.y, dir: 'down', frame: 0
+    };
+
+    // main.js 가 서버로 보내거나 창을 열 수 있게 앉기·일어나기·말 걸기를 알려준다
+    const hooks = { onSit() {}, onStand() {}, onTalk() {} };
+
+    // 대화창·상점 창이 열려 있는 동안에는 캐릭터 조작을 막는다
+    let locked = false;
 
     const keys = new Set();
     const KEYMAP = { ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right' };
@@ -403,8 +413,26 @@
       return [{ x: AISLE_X, y: player.y }, { x: AISLE_X, y: ty }, { x: tx, y: ty }];
     }
 
-    function toggleSit() {
+    // 상점 주인을 바라보며 붙어 서 있는지. 의자와 같은 방식으로 한 발 앞을 찍어 본다.
+    function shopFacing() {
+      if (player.seat) return false;
+      const [dx, dy] = DIRV[player.dir];
+      const px = player.x + dx * 10;
+      const py = player.y - 2 + dy * 6;
+      return px >= SHOPKEEPER.x - 6 && px <= SHOPKEEPER.x + 6
+        && py >= SHOPKEEPER.y - 12 && py <= SHOPKEEPER.y + 4;
+    }
+
+    const OPPOSITE = { up: 'down', down: 'up', left: 'right', right: 'left' };
+
+    // Space 하나로 말 걸기·앉기·일어나기를 모두 한다. 사람이 의자보다 우선.
+    function act() {
       if (player.seat) { stand(); return; }
+      if (shopFacing()) {
+        shopkeeper.dir = OPPOSITE[player.dir];
+        hooks.onTalk();
+        return;
+      }
       const seat = seatFacing();
       if (seat) sit(seat);
     }
@@ -416,9 +444,9 @@
     }
 
     window.addEventListener('keydown', (e) => {
-      if (isTyping(e) || !player.active) return;
+      if (isTyping(e) || !player.active || locked) return;
       if (e.code === 'Space') {
-        if (!e.repeat) toggleSit();
+        if (!e.repeat) act();
         e.preventDefault();
         return;
       }
@@ -443,7 +471,7 @@
       const rc = canvas.getBoundingClientRect();
       const x = (e.clientX - rc.left) / rc.width * W;
       const y = (e.clientY - rc.top) / rc.height * H;
-      if (!player.active) return;
+      if (!player.active || locked) return;
       // 착석 화면은 좌표계가 달라서, 아래 띠를 누르면 일어나기만 한다
       if (player.seat) { stand(); return; }
       if (y < FLOOR_Y) return;
@@ -517,7 +545,7 @@
       g.drawImage(bg, 0, 0);
 
       const list = statics.slice();
-      const people = player.active ? [player, ...remotes.values()] : remotes.values();
+      const people = player.active ? [shopkeeper, player, ...remotes.values()] : [shopkeeper, ...remotes.values()];
       for (const p of people) {
         if (p.seat) {
           const s = p.seat;
@@ -530,8 +558,12 @@
       list.sort((a, b) => a.key - b.key);
       for (const it of list) it.draw();
 
-      const near = player.seat ? null : seatFacing();
-      if (near) drawSeatMarker(g, near, now.getTime() / 1000);
+      const t = now.getTime() / 1000;
+      if (!locked && player.active && shopFacing()) drawMarker(g, SHOPKEEPER.x, SHOPKEEPER.y - 25, t);
+      else {
+        const near = player.seat ? null : seatFacing();
+        if (near) drawMarker(g, near.x + 7, near.y - 13, t);
+      }
 
       if (player.seat) composeSeated(player.seat);
       else screen.drawImage(world, 0, 0);
@@ -563,16 +595,18 @@
       screen.drawImage(strip.c, 0, ST.y, W, ST.h);
     }
 
-    // 안내 문구용 현재 상태: 'seated' | 'near' | 'free'
+    // 안내 문구용 현재 상태: 'seated' | 'talk' | 'near' | 'free'
     function prompt() {
       if (player.seat) return 'seated';
+      if (shopFacing()) return 'talk';
       return seatFacing() ? 'near' : 'free';
     }
 
     // 말풍선·닉네임이 붙을 머리 위 지점(화면 논리 좌표). 화면에 안 보이면 null.
-    //   who: 'me' 또는 접속자 id
+    //   who: 'me', 'shop'(상점 주인) 또는 접속자 id
     let stripSx = 0;
     function anchor(who) {
+      if (who === 'shop') return player.seat ? null : { x: shopkeeper.x, y: shopkeeper.y - 19 };
       const p = who === 'me' ? (player.active ? player : null) : remotes.get(who);
       if (!p) return null;
       if (player.seat) {
@@ -666,7 +700,19 @@
       }
     };
 
-    return { update, render, prompt, anchor, releaseKeys, player, hooks, net, get seatedView() { return !!player.seat; } };
+    function setLocked(v) {
+      locked = v;
+      keys.clear();
+      player.route = null;
+      // 대화가 끝나면 상점 주인은 다시 정면을 본다
+      if (!v) shopkeeper.dir = 'down';
+    }
+
+    return {
+      update, render, prompt, anchor, releaseKeys, setLocked, player, hooks, net,
+      shopkeeperName: shopkeeper.name,
+      get seatedView() { return !!player.seat; }
+    };
   }
 
   PX.createScene = createScene;

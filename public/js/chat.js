@@ -28,8 +28,12 @@
       return el;
     }
 
-    // 같은 자리면 style 을 건드리지 않아 불필요한 스타일 계산을 피한다
+    // 화면 가장자리(오른쪽 끝 상점 주인 등)에서 잘리지 않게 가로 위치를 무대 안으로 당긴다.
+    // 같은 자리면 style 을 건드리지 않아 불필요한 스타일 계산을 피한다.
+    let stageW = 0;
     function place(item, x, y) {
+      const half = (item.w || 0) / 2 + 2;
+      if (stageW > half * 2) x = Math.min(stageW - half, Math.max(half, x));
       const tx = `translate(${Math.round(x)}px, ${Math.round(y)}px) translate(-50%, -100%)`;
       if (tx !== item.tx) {
         item.tx = tx;
@@ -51,6 +55,7 @@
       }
       b.el.textContent = text;
       b.el.classList.remove('fade');
+      b.w = 0;
       b.until = performance.now() + durationMs;
     }
 
@@ -61,6 +66,7 @@
         tags.set(who, t);
       }
       t.el.textContent = name;
+      t.w = 0;
     }
 
     function remove(who) {
@@ -74,6 +80,12 @@
       const s = getScale();
       // 앉은 화면은 띠가 좁아 닉네임표를 숨기고 말풍선만 띄운다
       const seated = scene.seatedView;
+
+      // 폭 재기(레이아웃 읽기)는 위치 쓰기보다 먼저 몰아서 한다. 섞으면 매번 레이아웃을 다시 계산한다.
+      stageW = stage.clientWidth;
+      for (const m of [tags, bubbles]) {
+        for (const it of m.values()) if (!it.w && !it.el.hidden) it.w = it.el.offsetWidth;
+      }
 
       for (const [who, t] of tags) {
         const a = seated ? null : scene.anchor(who);

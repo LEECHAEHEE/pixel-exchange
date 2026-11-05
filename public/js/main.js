@@ -77,6 +77,19 @@
     durationMs: C.chat.durationMs,
     maxLength: C.chat.maxLength
   });
+  // 상점 주인: 말을 걸면 대화창 → 구매한다 / 나간다 → 상점 창
+  const shop = PX.createShop({ stage, name: scene.shopkeeperName });
+  chat.setName('shop', scene.shopkeeperName);
+  scene.hooks.onTalk = () => shop.talk();
+  shop.onOpen = () => {
+    scene.setLocked(true);
+    chat.say('shop', '어서 오세요!');
+  };
+  shop.onClose = (reason) => {
+    scene.setLocked(false);
+    chat.say('shop', reason === 'shop' ? '감사합니다. 또 오세요!' : '안녕히 가세요!');
+  };
+
   const frameMs = 1000 / C.renderFps;
   let last = performance.now();
 
@@ -84,6 +97,7 @@
   const HINTS = {
     free: '방향키로 이동 · 빈 의자에 붙어 바라보고 Space 로 앉기 · Enter 로 채팅',
     near: 'Space 로 앉기',
+    talk: 'Space 로 상점 주인에게 말 걸기',
     seated: 'Space 또는 ↓ ← → 로 일어나기'
   };
   let hintState = 'free';
@@ -219,4 +233,5 @@
   PX.scene = scene;
   PX.chat = chat;
   PX.net = net;
+  PX.shop = shop;
 })();
