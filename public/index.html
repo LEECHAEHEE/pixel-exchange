@@ -17,7 +17,7 @@
       <aside class="board-side">
         <div class="side-clock">
           <span class="clock" id="board-clock">--:--:--</span>
-          <span class="date-row"><span class="date" id="board-date"></span><span class="status" id="board-status">API 대기</span></span>
+          <span class="date-row"><span class="date" id="board-date"></span><span class="status" id="board-status">시세 대기</span></span>
         </div>
         <div class="indices" id="board-indices"></div>
       </aside>
@@ -26,12 +26,29 @@
     </section>
   </main>
 
-  <p class="hint" id="hint">방향키로 이동 · 빈 의자에 붙어 바라보고 Space 로 앉기</p>
+  <div class="bar">
+    <form class="chat" id="chat-form" autocomplete="off">
+      <input id="chat-input" type="text" placeholder="Enter 를 눌러 채팅" aria-label="채팅 입력">
+    </form>
+    <span class="online" id="online" data-state="connecting">연결 중</span>
+    <p class="hint" id="hint">방향키로 이동 · 빈 의자에 붙어 바라보고 Space 로 앉기</p>
+  </div>
+
+  <!-- 입장 화면: 닉네임만 받는다. 외형은 서버가 정한다. -->
+  <div class="join" id="join">
+    <form class="join-box" id="join-form" autocomplete="off">
+      <h1>도트증권 객장</h1>
+      <label for="join-name">닉네임</label>
+      <input id="join-name" type="text" maxlength="12" placeholder="12자 이내 (비우면 자동)">
+      <button type="submit">입장</button>
+    </form>
+  </div>
 
   <script src="js/config.js"></script>
   <script src="js/board.js"></script>
-  <script src="js/feed.js"></script>
   <script src="js/scene.js"></script>
+  <script src="js/chat.js"></script>
+  <script src="js/net.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>

@@ -27,7 +27,10 @@ PX.config = {
 
   // 전광판 왼쪽 패널에 시계 아래로 이 순서대로 쌓인다
   indices: ['KOSPI', 'KOSDAQ'],
-  tickerIdle: '실시간 시세 연동 대기 중 · API 연결 후 이 자리에 뉴스/공지가 흐릅니다',
+  tickerIdle: '서버에서 시세를 기다리는 중입니다',
+
+  // 말풍선 유지 시간과 한 번에 보낼 수 있는 글자 수
+  chat: { durationMs: 5000, maxLength: 60 },
 
   // 한국 시장 관례: 상승 빨강, 하락 파랑
   flashMs: 450

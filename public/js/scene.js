@@ -297,9 +297,6 @@
     return false;
   }
 
-  function createWalker(look, x, y, path, speed) {
-    return { look, x, y, dir: 'down', frame: 0, anim: 0, path, wp: 0, speed, wait: 0 };
-  }
 
   // 한 축씩 이동해 벽에 비스듬히 부딪혀도 미끄러지듯 움직이게 한다
   function moveBy(p, dx, dy) {
@@ -326,38 +323,30 @@
     const bg = paintBackground();
     const seatedBg = paintSeatedBackground();
     const chairImg = paintChair();
-    const r = rng(42);
 
-    const hairs = ['#2a2220', '#2a2220', '#3b2a20', '#8c8c8c', '#d9d9d9', '#5b3a22'];
+    // 의자 번호(index)는 서버와 같은 순서(줄 → 칸)로 매긴다. occupant 는 앉은 사람 객체.
     const statics = [];
-    const seated = [];
     const seats = [];
     for (const cy of CHAIR_ROWS) {
       for (const cx of CHAIR_COLS) {
-        const seat = { x: cx, y: cy, taken: false };
-        seats.push(seat);
-        if (r() < 0.35) {
-          seat.taken = true;
-          const s = { x: cx, y: cy, look: { hair: hairs[Math.floor(r() * hairs.length)], bald: r() < 0.15 }, tilt: 0, next: 1 + r() * 6 };
-          seated.push(s);
-          statics.push({ key: cy + CHAIR_H - 0.5, draw: () => drawSeated(g, s.x, s.y, s.look, s.tilt) });
-        }
+        seats.push({ x: cx, y: cy, index: seats.length, occupant: null });
         statics.push({ key: cy + CHAIR_H, draw: () => g.drawImage(chairImg, cx, cy) });
       }
     }
 
+    // 내 캐릭터. 서버에서 입장 확인(welcome)을 받기 전에는 화면에 없다.
     const player = {
-      look: { hair: '#2a2220', shirt: '#3a5bbf', shirtLo: '#2c4596', pants: '#3a3a48', cap: '#d83a3a', capLo: '#a82626' },
-      x: 160, y: 172, dir: 'up', frame: 0, anim: 0, route: null,
+      active: false,
+      look: { hair: '#2a2220', shirt: '#3a5bbf', shirtLo: '#2c4596', pants: '#3a3a48' },
+      x: 160, y: 172, dir: 'up', frame: 0, anim: 0, route: null, moving: false,
       seat: null, standAt: null
     };
 
-    const npcs = [
-      createWalker({ hair: '#5b3a22', shirt: '#4f8f5a', pants: '#5a4a3a' }, 160, 124, [[160, 124], [160, 176]], 18),
-      createWalker({ hair: '#8c8c8c', shirt: '#d8c79a', pants: '#4a4a55' }, 24, 122, [[24, 122], [136, 122], [136, 122], [24, 122]], 14),
-      { look: { hair: '#2a2220', shirt: '#7a4f9a', pants: '#3a3a48' }, x: 228, y: 122, dir: 'up', frame: 0, idle: true },
-      { look: { hair: '#d9d9d9', shirt: '#8a6a4a', pants: '#3a3a48', paper: true }, x: 194, y: 122, dir: 'down', frame: 0, idle: true }
-    ];
+    // 다른 접속자. 서버가 0.1초마다 보내는 위치(tx, ty)를 향해 부드럽게 따라간다.
+    const remotes = new Map();
+
+    // main.js 가 서버로 보낼 수 있게 앉기·일어나기를 알려준다
+    const hooks = { onSit() {}, onStand() {} };
 
     const keys = new Set();
     const KEYMAP = { ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right' };
@@ -373,27 +362,31 @@
       // 걸음이 1.8px 단위라 붙어 서도 1~2px 떨어질 수 있어 옆쪽은 조금 더 멀리 본다
       const px = player.x + dx * 10;
       const py = player.y - 2 + dy * 6;
-      return seats.find(s => !s.taken
+      return seats.find(s => !s.occupant
         && px >= s.x && px < s.x + CHAIR_W
         && py >= s.y && py < s.y + CHAIR_H + 3) || null;
     }
 
+    // 서버 확인을 기다리지 않고 먼저 앉는다. 다른 사람이 먼저 앉았으면 서버가 sitDenied 를 보내 되돌린다.
     function sit(seat) {
-      seat.taken = true;
+      seat.occupant = player;
       // 일어날 때 앉기 전 자리로 돌아오게 기억해 둔다
       player.standAt = { x: player.x, y: player.y, dir: player.dir };
       player.seat = seat;
       player.route = null;
+      player.moving = false;
       player.dir = 'up';
       animate(player, false, 0);
+      hooks.onSit(seat.index);
     }
 
-    function stand() {
-      player.seat.taken = false;
+    function stand(silent) {
+      if (player.seat.occupant === player) player.seat.occupant = null;
       player.x = player.standAt.x;
       player.y = player.standAt.y;
       player.dir = player.standAt.dir;
       player.seat = null;
+      if (!silent) hooks.onStand(player.x, player.y, player.dir);
     }
 
     function lineFree(x0, y0, x1, y1) {
@@ -416,7 +409,14 @@
       if (seat) sit(seat);
     }
 
+    // 채팅 입력창에서 친 Space·방향키·WASD 가 캐릭터를 움직이면 안 된다
+    function isTyping(e) {
+      const t = e.target;
+      return t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+    }
+
     window.addEventListener('keydown', (e) => {
+      if (isTyping(e) || !player.active) return;
       if (e.code === 'Space') {
         if (!e.repeat) toggleSit();
         e.preventDefault();
@@ -443,6 +443,7 @@
       const rc = canvas.getBoundingClientRect();
       const x = (e.clientX - rc.left) / rc.width * W;
       const y = (e.clientY - rc.top) / rc.height * H;
+      if (!player.active) return;
       // 착석 화면은 좌표계가 달라서, 아래 띠를 누르면 일어나기만 한다
       if (player.seat) { stand(); return; }
       if (y < FLOOR_Y) return;
@@ -452,7 +453,8 @@
     const PLAYER_SPEED = 55;
 
     function updatePlayer(dt) {
-      if (player.seat) return;
+      player.moving = false;
+      if (!player.active || player.seat) return;
       let dx = 0, dy = 0;
       if (keys.has('left')) dx -= 1;
       if (keys.has('right')) dx += 1;
@@ -471,6 +473,7 @@
           if (!hits(t.x, t.y)) { player.x = t.x; player.y = t.y; }
           player.route.shift();
           if (player.route.length === 0) player.route = null;
+          player.moving = true;
           animate(player, true, dt);
           return;
         }
@@ -482,48 +485,39 @@
       const len = Math.hypot(dx, dy);
       const moved = moveBy(player, dx / len * step, dy / len * step);
       if (!moved) player.route = null;
+      player.moving = moved;
       animate(player, moved, dt);
     }
 
-    function updateNpc(n, dt) {
-      if (n.idle) return;
-      if (n.wait > 0) { n.wait -= dt; animate(n, false, dt); return; }
-      const [tx, ty] = n.path[n.wp];
-      const dx = tx - n.x, dy = ty - n.y;
+    // 서버 위치는 0.1초 간격이라, 그 사이를 걷는 속도로 채워 끊겨 보이지 않게 한다.
+    // 너무 멀면(순간이동·재접속) 바로 옮긴다.
+    const REMOTE_SPEED = 66;
+    function updateRemote(r, dt) {
+      if (r.seat) return;
+      const dx = r.tx - r.x, dy = r.ty - r.y;
       const dist = Math.hypot(dx, dy);
-      const step = n.speed * dt;
-      if (dist <= step) {
-        n.x = tx; n.y = ty;
-        n.wp = (n.wp + 1) % n.path.length;
-        n.wait = 0.8 + Math.random() * 2;
-        n.dir = 'up';
-        animate(n, false, dt);
-        return;
+      const step = REMOTE_SPEED * dt;
+      if (dist > 40 || dist <= step) {
+        r.x = r.tx;
+        r.y = r.ty;
+      } else {
+        r.x += dx / dist * step;
+        r.y += dy / dist * step;
       }
-      n.x += dx / dist * step;
-      n.y += dy / dist * step;
-      n.dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
-      animate(n, true, dt);
+      animate(r, r.moving || dist > 0.5, dt);
     }
 
     function update(dt) {
       updatePlayer(dt);
-      for (const n of npcs) updateNpc(n, dt);
-      for (const s of seated) {
-        s.next -= dt;
-        if (s.next <= 0) {
-          s.tilt = s.tilt ? 0 : (Math.random() < 0.5 ? -1 : 1);
-          s.next = s.tilt ? 0.6 + Math.random() : 3 + Math.random() * 8;
-        }
-      }
+      for (const r of remotes.values()) updateRemote(r, dt);
     }
 
-    const people = [player, ...npcs];
     function render() {
       const now = new Date();
       g.drawImage(bg, 0, 0);
 
       const list = statics.slice();
+      const people = player.active ? [player, ...remotes.values()] : remotes.values();
       for (const p of people) {
         if (p.seat) {
           const s = p.seat;
@@ -552,6 +546,7 @@
       const sw = strip.c.width;
       const sh = strip.c.height;
       const sx = Math.round(Math.max(0, Math.min(W - sw, seat.x + CHAIR_W / 2 - sw / 2)));
+      stripSx = sx;
       // 모자 꼭대기가 띠 맨 위, 등받이 윗부분이 띠 맨 아래에 오게 맞춘다
       const oy = 8 - seat.y;
 
@@ -560,11 +555,7 @@
         if (s.y !== seat.y || s.x + CHAIR_W < sx || s.x > sx + sw) continue;
         const x = s.x - sx;
         const y = s.y + oy;
-        if (s === seat) drawSeated(sg, x, y, player.look, 0);
-        else {
-          const npc = seated.find(n => n.x === s.x && n.y === s.y);
-          if (npc) drawSeated(sg, x, y, npc.look, npc.tilt);
-        }
+        if (s.occupant) drawSeated(sg, x, y, s.occupant.look, 0);
         sg.drawImage(chairImg, x, y);
       }
 
@@ -578,7 +569,104 @@
       return seatFacing() ? 'near' : 'free';
     }
 
-    return { update, render, prompt, player };
+    // 말풍선·닉네임이 붙을 머리 위 지점(화면 논리 좌표). 화면에 안 보이면 null.
+    //   who: 'me' 또는 접속자 id
+    let stripSx = 0;
+    function anchor(who) {
+      const p = who === 'me' ? (player.active ? player : null) : remotes.get(who);
+      if (!p) return null;
+      if (player.seat) {
+        // 착석 화면에는 내 줄 띠만 보이므로, 같은 줄에 앉은 사람만 띠 위에 표시한다
+        if (!p.seat || p.seat.y !== player.seat.y) return null;
+        const x = (p.seat.x + CHAIR_W / 2 - stripSx) * ST.zoom;
+        if (x < 0 || x > W) return null;
+        return { x, y: ST.y - 1 };
+      }
+      if (p.seat) return { x: p.seat.x + CHAIR_W / 2, y: p.seat.y - 9 };
+      return { x: p.x, y: p.y - 19 };
+    }
+
+    function releaseKeys() {
+      keys.clear();
+    }
+
+    // ---------- 서버 동기화 ----------
+
+    function occupy(r, index) {
+      const seat = seats[index];
+      if (!seat) return;
+      // 내가 먼저 앉은 줄 알았는데 서버가 다른 사람에게 줬으면 내가 비킨다
+      if (seat.occupant === player) stand(true);
+      seat.occupant = r;
+      r.seat = seat;
+      r.moving = false;
+    }
+
+    function vacate(r) {
+      if (r.seat && r.seat.occupant === r) r.seat.occupant = null;
+      r.seat = null;
+    }
+
+    const net = {
+      // 입장 확인. 재접속일 수도 있으므로 다른 사람·의자 상태를 모두 새로 받는다.
+      welcome(me, users) {
+        for (const s of seats) s.occupant = null;
+        remotes.clear();
+        Object.assign(player, { active: true, look: me.look, x: me.x, y: me.y, dir: me.dir, seat: null, route: null });
+        for (const u of users) net.add(u);
+      },
+
+      add(u) {
+        const r = { id: u.id, name: u.name, look: u.look, x: u.x, y: u.y, tx: u.x, ty: u.y, dir: u.dir, moving: !!u.moving, frame: 0, anim: 0, seat: null };
+        remotes.set(u.id, r);
+        if (u.seat != null) occupy(r, u.seat);
+      },
+
+      remove(id) {
+        const r = remotes.get(id);
+        if (!r) return;
+        vacate(r);
+        remotes.delete(id);
+      },
+
+      move(id, x, y, dir, moving) {
+        const r = remotes.get(id);
+        if (!r || r.seat) return;
+        r.tx = x;
+        r.ty = y;
+        r.dir = dir;
+        r.moving = !!moving;
+      },
+
+      sit(id, index) {
+        const r = remotes.get(id);
+        if (r) occupy(r, index);
+      },
+
+      stand(id, x, y, dir) {
+        const r = remotes.get(id);
+        if (!r) return;
+        vacate(r);
+        r.x = r.tx = x;
+        r.y = r.ty = y;
+        r.dir = dir;
+      },
+
+      // 서버가 앉기를 거절했을 때(다른 사람이 먼저 앉음)
+      sitDenied() {
+        if (player.seat) stand(true);
+      },
+
+      names() {
+        return [...remotes.values()].map(r => [r.id, r.name]);
+      },
+
+      get count() {
+        return remotes.size + (player.active ? 1 : 0);
+      }
+    };
+
+    return { update, render, prompt, anchor, releaseKeys, player, hooks, net, get seatedView() { return !!player.seat; } };
   }
 
   PX.createScene = createScene;

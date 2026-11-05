@@ -264,7 +264,7 @@
 
     board.clear();
     board.setTicker('');
-    board.setStatus('API 대기', false);
+    board.setStatus('시세 대기', false);
     tickClock();
     return board;
   }
