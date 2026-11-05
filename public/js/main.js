@@ -28,6 +28,14 @@
     }
   }, true);
 
+  // 조작 방법 창(Esc). 상점·인벤토리·감정표현 판이 Esc 로 닫힐 때 따라 열리지 않도록
+  // 그 창들보다 먼저 키를 받게 여기서 만든다(그 창들은 아래에서 만들어져 PX 에 등록된다).
+  const help = PX.createHelp({
+    canOpen: () => document.getElementById('join').hidden
+      && !(PX.shop && PX.shop.open) && !(PX.inventory && PX.inventory.open) && !(PX.emote && PX.emote.open)
+  });
+  document.getElementById('hint').addEventListener('click', () => help.toggle());
+
   const gridEl = document.getElementById('board-grid');
   let scale = 1;
   let seatedView = false;
@@ -139,7 +147,7 @@
 
   const hintEl = document.getElementById('hint');
   const HINTS = {
-    free: '방향키로 이동 · 빈 의자에 붙어 바라보고 Space 로 앉기 · Enter 채팅 · C 감정표현 · M 채팅 기록 · I 인벤토리',
+    free: '[Esc] 조작 방법',
     near: 'Space 로 앉기',
     talk: 'Space 로 상점 주인에게 말 걸기',
     seated: 'Space 또는 ↓ ← → 로 일어나기'
@@ -210,6 +218,7 @@
         chat.setName('me', msg.me.name);
         for (const u of msg.users) chat.setName(u.id, u.name);
         chat.setLog(msg.history || []);
+        scene.net.dog(msg.dog);
         applyMarket(msg.market);
         refreshOnline();
       },
@@ -233,6 +242,8 @@
       sitDenied() { scene.net.sitDenied(); },
       equip(msg) { if (msg.id !== myId) scene.net.equip(msg.id, msg.equip); },
       emote(msg) { if (msg.id !== myId) scene.playEmote(msg.id, msg.emote); },
+      // 강아지가 새 주인을 만나면 짖는다
+      dog(msg) { if (scene.net.dog(msg) && msg.owner) chat.say('dog', '멍!'); },
       chat(msg) {
         chat.say(whoOf(msg.id), msg.text);
         chat.addLog(msg.name || '?', msg.text);
@@ -299,4 +310,5 @@
   PX.shop = shop;
   PX.inventory = inventory;
   PX.emote = emote;
+  PX.help = help;
 })();

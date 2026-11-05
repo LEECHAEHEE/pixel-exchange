@@ -401,6 +401,39 @@
     }
   }
 
+  // 흰 강아지(옆모습). (x, y) 는 발끝 가운데, dir 은 'left' | 'right'.
+  // frame 은 걷기 동작(0~3), wag 는 꼬리 흔들기(0/1).
+  const DOG = { body: '#f7f6f1', shade: '#d9d6cc', ear: '#e6e1d4', nose: '#2a1d18', tongue: '#e8707a' };
+  function drawDog(g, x, y, dir, frame, wag) {
+    const s = dir === 'left' ? -1 : 1;
+    // 오른쪽을 보는 그림 기준 좌표를 방향에 맞춰 뒤집는다
+    const r = (dx, dy, w, h, c) => rect(g, s > 0 ? x + dx : x - dx - w, y + dy, w, h, c);
+
+    rect(g, x - 5, y, 10, 1, 'rgba(0,0,0,0.18)');
+    // 다리: 걸을 때 앞뒤 다리가 번갈아 한 칸씩 들린다
+    const lift = frame === 1 || frame === 3;
+    for (const [dx, up] of [[-4, lift], [-2, !lift], [1, !lift], [3, lift]]) {
+      r(dx - 1, -3, 3, up ? 2 : 3, PAL.outline);
+      r(dx, -3, 1, up ? 1 : 2, DOG.shade);
+    }
+    // 몸통·머리·꼬리 외곽선
+    r(-6, -7, 11, 5, PAL.outline);
+    r(2, -10, 6, 6, PAL.outline);
+    r(-8, -9 + wag, 3, 3, PAL.outline);
+    // 몸통
+    r(-5, -6, 9, 3, DOG.body);
+    r(-5, -4, 9, 1, DOG.shade);
+    // 머리
+    r(3, -9, 4, 4, DOG.body);
+    r(3, -10, 2, 2, DOG.ear);
+    r(3, -9, 1, 2, DOG.shade);
+    r(5, -8, 1, 1, PAL.outline);
+    r(7, -7, 1, 1, DOG.nose);
+    if (frame) r(6, -5, 1, 1, DOG.tongue);
+    // 꼬리
+    r(-7, -8 + wag, 1, 1, DOG.body);
+  }
+
   // 의자에 앉은 뒷모습: 머리만 등받이 위로 보인다
   // 꾸벅 인사하면 머리가 등받이 쪽으로 내려가 일부가 등받이에 가려진다
   function drawSeated(g, x, y, look, tilt, pose) {
@@ -489,6 +522,9 @@
 
     // 다른 접속자. 서버가 0.1초마다 보내는 위치(tx, ty)를 향해 부드럽게 따라간다.
     const remotes = new Map();
+
+    // 강아지. 움직임과 주인은 서버가 정하고, 화면은 받은 위치를 사람처럼 부드럽게 따라간다.
+    const dog = { active: false, x: 160, y: 150, tx: 160, ty: 150, dir: 'left', moving: false, owner: null, frame: 0, anim: 0 };
 
     // 상점 주인. 모든 접속자에게 같은 자리에 보이는 고정 NPC 라 서버와 주고받지 않는다.
     const shopkeeper = {
@@ -683,6 +719,7 @@
     function update(dt) {
       updatePlayer(dt);
       for (const r of remotes.values()) updateRemote(r, dt);
+      if (dog.active) updateRemote(dog, dt);
     }
 
     function render() {
@@ -700,6 +737,12 @@
         }
         const px = Math.round(p.x), py = Math.round(p.y);
         list.push({ key: py, draw: () => drawPerson(g, px, py, p.look, p.dir, p.frame, poseOf(p, nowMs)) });
+      }
+      if (dog.active) {
+        const dx = Math.round(dog.x), dy = Math.round(dog.y);
+        // 주인이 있으면 꼬리를 빨리 흔든다
+        const wag = Math.floor(nowMs / (dog.owner ? 150 : 450)) % 2;
+        list.push({ key: dy, draw: () => drawDog(g, dx, dy, dog.dir, dog.frame, wag) });
       }
       list.sort((a, b) => a.key - b.key);
       for (const it of list) it.draw();
@@ -785,6 +828,8 @@
     //   who: 'me', 'shop'(상점 주인) 또는 접속자 id
     let stripSx = 0;
     function anchor(who) {
+      // 강아지는 키가 작아 앉은 화면 띠에는 그리지 않는다
+      if (who === 'dog') return dog.active && !player.seat ? { x: dog.x, y: dog.y - 12 } : null;
       const p = who === 'shop' ? shopkeeper
         : who === 'me' ? (player.active ? player : null)
         : remotes.get(who);
@@ -887,6 +932,23 @@
 
       names() {
         return [...remotes.values()].map(r => [r.id, r.name]);
+      },
+
+      // 강아지 상태. 처음 받을 때는 그 자리에 바로 놓는다. 반환값: 주인이 바뀌었는지.
+      dog(d) {
+        if (!d) return false;
+        const changed = d.owner !== dog.owner;
+        if (!dog.active) {
+          dog.x = d.x;
+          dog.y = d.y;
+          dog.active = true;
+        }
+        dog.tx = d.x;
+        dog.ty = d.y;
+        dog.dir = d.dir;
+        dog.moving = !!d.moving;
+        dog.owner = d.owner;
+        return changed;
       },
 
       get count() {

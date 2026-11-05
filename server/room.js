@@ -2,6 +2,8 @@
 // 위치는 클라이언트가 보낸 값을 범위만 확인해 믿고, 의자는 서버가 주인을 정한다(동시에 앉기 방지).
 'use strict';
 
+const { createDog } = require('./dog');
+
 // public/js/scene.js 의 의자 배치(3줄 × 14개)와 걸을 수 있는 범위와 맞춰야 한다
 const SEAT_COUNT = 42;
 const BOUNDS = { x0: 4, y0: 120, x1: 316, y1: 179 };
@@ -67,6 +69,7 @@ function createRoom({ market }) {
   const seats = new Array(SEAT_COUNT).fill(null);
   const dirty = new Set();
   const history = [];
+  const dog = createDog({ users, broadcast, bounds: BOUNDS });
   let nextId = 1;
   let guestNo = 1;
 
@@ -100,6 +103,7 @@ function createRoom({ market }) {
       me: publicOf(u),
       users: [...users.values()].filter(o => o !== u).map(publicOf),
       history,
+      dog: dog.snapshot(),
       market: market.snapshot()
     });
     broadcast({ t: 'join', user: publicOf(u) }, id);
@@ -111,6 +115,7 @@ function createRoom({ market }) {
     if (!users.has(u.id)) return;
     if (u.seat !== null) seats[u.seat] = null;
     users.delete(u.id);
+    dog.forget(u.id);
     dirty.delete(u.id);
     broadcast({ t: 'leave', id: u.id });
     console.log(`[room] leave id=${u.id} users=${users.size}`);
@@ -186,6 +191,7 @@ function createRoom({ market }) {
 
   // 위치는 0.1초마다 바뀐 사람만 모아 한 번에 보낸다. 접속자가 많아도 메시지 수가 늘지 않는다.
   setInterval(() => {
+    dog.tick(BROADCAST_MS / 1000);
     if (dirty.size === 0) return;
     const list = [];
     for (const id of dirty) {

@@ -725,6 +725,43 @@ body {
 }
 .chat-log-list:empty::before { content: '아직 채팅이 없습니다'; color: #8a7a68; }
 
+/* ---------- 조작 방법 (Esc) ---------- */
+
+.hint { cursor: pointer; }
+.hint:hover { color: var(--gold); }
+
+.help {
+  position: fixed;
+  inset: 0;
+  z-index: 16;
+  display: grid;
+  place-items: center;
+  background: rgba(10, 7, 5, 0.6);
+}
+.help[hidden] { display: none; }
+.help-box {
+  width: min(440px, calc(100% - 16px));
+  max-height: calc(100dvh - 16px);
+  display: flex;
+  flex-direction: column;
+  color: #f4ead8;
+  background: #2a1f19;
+  border: 4px solid #5e3a22;
+  box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.4);
+}
+.help-list {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 16px;
+  margin: 12px 14px 0;
+  padding: 12px 14px;
+  overflow-y: auto;
+  font-size: 13px;
+  background: #1b1410;
+  border: 2px solid #5e3a22;
+}
+.help-list dt { color: var(--gold); white-space: nowrap; }
+
 /* ---------- 화면 가리기 (X) ---------- */
 
 .cover {
