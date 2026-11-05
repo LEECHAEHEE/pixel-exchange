@@ -9,6 +9,7 @@ const path = require('path');
 const { WebSocketServer } = require('ws');
 const { createRoom } = require('./room');
 const { createMarket, startSource } = require('./market');
+const { startNews } = require('./news');
 const { createRace } = require('./race');
 
 const PORT = Number(process.env.PORT) || 5178;
@@ -66,6 +67,7 @@ const race = createRace({
 room = createRoom({ market, race });
 market.attach(msg => room.broadcast(msg));
 startSource(market, process.env);
+startNews(list => market.setNews(list), process.env, () => market.snapshot().symbols.map(s => s.name));
 
 wss.on('connection', (ws) => {
   let user = null;

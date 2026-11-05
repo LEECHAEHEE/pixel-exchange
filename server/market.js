@@ -5,20 +5,40 @@
 //   market.setSymbols([{ code, name }])
 //   market.push(tick | tick[])           { code, price, change, rate, name? }
 //   market.setIndices([{ name, value, change, rate, volume?, amount? }])
-//   market.setTicker(text)
+//   market.setTicker(text)               공급원 안내 문구. 뉴스 헤드라인 뒤에 붙는다
+//   market.setNews([{ src, title, time }])  경제 뉴스 헤드라인 (server/news.js)
 //   market.setStatus(text, live)
 'use strict';
 
 const WebSocket = require('ws');
+const { tossSource, readKeys } = require('./toss');
 
 const FLUSH_MS = 200;
+
+// 'HH:MM' (KST)
+function kstTime(ms) {
+  return new Date(ms + 9 * 3600e3).toISOString().slice(11, 16);
+}
 
 function createMarket() {
   let symbols = [];
   const latest = new Map();
   const indices = new Map();
   let ticker = '';
+  // 띠 문구 = 뉴스 헤드라인 + 시세 공급원 안내. 둘 중 하나만 바뀌어도 합쳐서 다시 보낸다.
+  let sourceNote = '';
+  let headlines = [];
   let status = { text: '시세 대기', live: false };
+
+  function composeTicker() {
+    const sep = '   ◆   ';
+    const parts = headlines.map(h => `[${h.src} ${kstTime(h.time)}] ${h.title}`);
+    if (sourceNote) parts.push(sourceNote);
+    const text = parts.join(sep);
+    if (text === ticker) return;
+    ticker = text;
+    publish({ t: 'ticker', text: ticker });
+  }
 
   const pending = new Map();
   let publish = () => {};
@@ -58,9 +78,16 @@ function createMarket() {
       publish({ t: 'indices', indices: list });
     },
 
+    // 시세 공급원 안내 문구(데모·토스 등)
     setTicker(text) {
-      ticker = text || '';
-      publish({ t: 'ticker', text: ticker });
+      sourceNote = text || '';
+      composeTicker();
+    },
+
+    // 경제 뉴스 헤드라인 [{ src, title, time }]
+    setNews(list) {
+      headlines = list || [];
+      composeTicker();
     },
 
     setStatus(text, live) {
@@ -165,7 +192,11 @@ function apiSource(market, { url, apiKey }) {
 }
 
 function startSource(market, env) {
-  if (env.MARKET_WS_URL) {
+  const tossKeys = readKeys(env);
+  if (tossKeys) {
+    console.log('[market] source=toss');
+    tossSource(market, env, tossKeys);
+  } else if (env.MARKET_WS_URL) {
     console.log('[market] source=api');
     apiSource(market, { url: env.MARKET_WS_URL, apiKey: env.MARKET_API_KEY });
   } else {

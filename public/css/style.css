@@ -167,8 +167,9 @@ body {
 .board {
   --s: calc(var(--ps) * var(--k, 1));
   display: grid;
-  /* 왼쪽 패널은 비율로 잡아야 앉은 화면(글자 확대)에서도 종목 칸이 좁아지지 않는다 */
-  grid-template-columns: 26% 1fr;
+  /* 가운데 지수 패널은 비율로 잡아야 앉은 화면(글자 확대)에서도 종목 칸이 좁아지지 않는다.
+     좌우 종목 칸이 같은 폭을 나눠 가진다 */
+  grid-template-columns: 1fr 20% 1fr;
   grid-template-rows: 1fr calc(var(--s) * 7px);
   background: var(--board-bg);
   overflow: hidden;
@@ -186,15 +187,19 @@ body {
   background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0) 0, rgba(0, 0, 0, 0) calc(var(--s) * 0.5px), rgba(0, 0, 0, 0.28) calc(var(--s) * 0.5px), rgba(0, 0, 0, 0.28) calc(var(--s) * 1px));
 }
 
-/* 왼쪽 패널: 시계 아래 남은 높이를 KOSPI, KOSDAQ 이 반씩 나눈다 */
+/* 가운데 패널: 시계 아래 남은 높이를 KOSPI, KOSDAQ 이 반씩 나눈다 */
 .board-side {
   display: grid;
   grid-template-rows: auto 1fr;
+  border-left: calc(var(--s) * 0.5px) solid #2a2e36;
   border-right: calc(var(--s) * 0.5px) solid #2a2e36;
   background: #0d1016;
   white-space: nowrap;
   overflow: hidden;
   min-height: 0;
+  /* 앉은 화면은 글자가 1.5배라 좁은 가운데 칸을 넘친다.
+     아래 글자들은 이 칸 폭(cqw)을 넘지 않는 선에서만 커진다 */
+  container-type: inline-size;
 }
 
 .side-clock {
@@ -207,7 +212,8 @@ body {
 /* 7세그먼트 시계처럼 보이도록 녹색 발광 */
 .clock {
   font-family: var(--mono);
-  font-size: calc(var(--s) * 7.5px);
+  /* '21:32:03' 이 약 4.3em 이라 21cqw 면 칸 폭의 90% */
+  font-size: min(calc(var(--s) * 7.5px), 21cqw);
   line-height: 1;
   color: #5dff7a;
   text-shadow: 0 0 calc(var(--s) * 1.5px) rgba(93, 255, 122, 0.55);
@@ -241,14 +247,16 @@ body {
 .idx + .idx { border-top: calc(var(--s) * 0.5px) solid #5a1e22; }
 .idx em {
   font-style: normal;
-  font-size: calc(var(--s) * 9px);
+  /* 'KOSDAQ' 이 약 4.7em 이라 19cqw 면 칸 폭의 90%. 자간도 글자 크기를 따라 줄도록 em 으로 둔다 */
+  font-size: min(calc(var(--s) * 9px), 19cqw);
   line-height: 1;
-  letter-spacing: calc(var(--s) * 0.8px);
+  letter-spacing: 0.09em;
   color: #fff4c2;
 }
-.idx b { font-weight: normal; font-family: var(--mono); font-size: calc(var(--s) * 7.5px); line-height: 1; }
-.idx i { font-style: normal; font-family: var(--mono); font-size: calc(var(--s) * 4px); line-height: 1.1; }
-.idx small { font-family: var(--mono); font-size: calc(var(--s) * 3px); line-height: 1.1; color: var(--name); }
+/* 값·등락·거래량도 같은 방식으로 칸 폭의 약 90% 까지만 */
+.idx b { font-weight: normal; font-family: var(--mono); font-size: min(calc(var(--s) * 7.5px), 22cqw); line-height: 1; }
+.idx i { font-style: normal; font-family: var(--mono); font-size: min(calc(var(--s) * 4px), 13cqw); line-height: 1.1; }
+.idx small { font-family: var(--mono); font-size: min(calc(var(--s) * 3px), 8.5cqw); line-height: 1.1; color: var(--name); }
 .idx small:empty { display: none; }
 
 .status {

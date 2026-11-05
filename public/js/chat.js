@@ -39,6 +39,7 @@
     // 화면 가장자리(오른쪽 끝 상점 주인 등)에서 잘리지 않게 가로 위치를 무대 안으로 당긴다.
     // 같은 자리면 style 을 건드리지 않아 불필요한 스타일 계산을 피한다.
     let stageW = 0;
+    let lastScale = 0;
     function place(item, x, y) {
       const half = (item.w || 0) / 2 + 2;
       if (stageW > half * 2) x = Math.min(stageW - half, Math.max(half, x));
@@ -47,6 +48,22 @@
         item.tx = tx;
         item.el.style.transform = tx;
       }
+    }
+
+    // 글이 여러 줄로 접히면 CSS 의 max-content 박스는 최대 폭에 붙어 버려 오른쪽이 비어 보인다.
+    // 실제로 접힌 줄들 중 가장 긴 줄의 폭을 재서 말풍선 폭을 글에 딱 맞춘다. 높이는 줄 수에 따라 저절로 맞는다.
+    const range = document.createRange();
+    function fitBubble(b) {
+      const el = b.el;
+      el.style.width = '';
+      range.selectNodeContents(el);
+      let textW = 0;
+      for (const r of range.getClientRects()) textW = Math.max(textW, r.width);
+      const cs = getComputedStyle(el);
+      const extra = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight)
+        + parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth);
+      // 소수점 반올림으로 마지막 글자가 다음 줄로 밀리지 않게 1px 여유를 둔다
+      if (textW > 0) el.style.width = Math.ceil(textW + extra + 1) + 'px';
     }
 
     function show(item, visible) {
@@ -91,6 +108,12 @@
 
       // 폭 재기(레이아웃 읽기)는 위치 쓰기보다 먼저 몰아서 한다. 섞으면 매번 레이아웃을 다시 계산한다.
       stageW = stage.clientWidth;
+      // 화면 배율이 바뀌면 글자 크기도 바뀌므로 말풍선 폭을 다시 잰다
+      if (s !== lastScale) {
+        lastScale = s;
+        for (const b of bubbles.values()) b.w = 0;
+      }
+      for (const b of bubbles.values()) if (!b.w && !b.el.hidden) fitBubble(b);
       for (const m of [tags, bubbles]) {
         for (const it of m.values()) if (!it.w && !it.el.hidden) it.w = it.el.offsetWidth;
       }

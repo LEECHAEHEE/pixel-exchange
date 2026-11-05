@@ -85,6 +85,7 @@
         t.el.setAttribute('aria-selected', on);
       }
       itemsEl.replaceChildren();
+      itemsEl.scrollTop = 0;
       buyButtons = [];
       for (const item of ITEMS.filter(i => i.cat === id)) {
         const card = document.createElement('article');
@@ -148,8 +149,39 @@
       if (!buyButtons.length) return;
       selItem = (i + buyButtons.length) % buyButtons.length;
       buyButtons.forEach((b, j) => b.closest('.item').classList.toggle('sel', j === selItem));
-      buyButtons[selItem].focus();
+      buyButtons[selItem].focus({ preventScroll: true });
+      // 고른 카드가 목록 밖이면 그 카드가 보일 만큼만 스크롤한다
+      buyButtons[selItem].closest('.item').scrollIntoView({ block: 'nearest' });
     }
+
+    // 목록 칸 높이를 '화면에 들어가는 줄 수'로 고정한다. 탭마다 아이템 수가 달라도 창 크기가 같고,
+    // 넘치는 아이템은 스크롤로 본다. 줄 수는 가장 많은 탭의 아이템 수를 넘지 않는다.
+    const MAX_ROWS = Math.max(...CATEGORIES.map(c => ITEMS.filter(i => i.cat === c.id).length));
+    function fitList() {
+      const cards = [...itemsEl.querySelectorAll('.item')];
+      if (!cards.length) return;
+      itemsEl.style.height = '';
+      itemsEl.style.minHeight = '0';
+      const cs = getComputedStyle(itemsEl);
+      const gap = parseFloat(cs.rowGap) || 0;
+      const chromeY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom)
+        + parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
+      // 설명이 두 줄로 접힌 카드가 있을 수 있어 가장 큰 카드 높이로 잰다
+      const cardH = Math.max(...cards.map(c => c.offsetHeight));
+      const box = itemsEl.parentElement;
+      // 창 최대 높이(화면 - 16px)에서 머리·탭·아래 안내 줄을 뺀 만큼이 목록에 쓸 수 있는 높이
+      const others = box.offsetHeight - itemsEl.offsetHeight;
+      const avail = window.innerHeight - 16 - others - chromeY;
+      const fit = Math.floor((avail + gap) / (cardH + gap));
+      const rows = Math.max(1, Math.min(MAX_ROWS, fit));
+      itemsEl.style.height = Math.ceil(rows * cardH + (rows - 1) * gap + chromeY) + 'px';
+    }
+    let fitTimer = 0;
+    window.addEventListener('resize', () => {
+      if (shopEl.hidden) return;
+      clearTimeout(fitTimer);
+      fitTimer = setTimeout(fitList, 120);
+    });
 
     function openDialog() {
       dialog.hidden = false;
@@ -164,7 +196,9 @@
       closeDialog();
       shopEl.hidden = false;
       msgEl.textContent = '';
-      selectTab(current);
+      selectTab(current, false);
+      fitList();
+      selectItem(0);
     }
 
     function closeShop() {

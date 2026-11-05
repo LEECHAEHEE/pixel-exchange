@@ -14,6 +14,8 @@
     <!-- 전광판은 텍스트가 잦게 바뀌므로 캔버스가 아니라 DOM 오버레이로 둔다 -->
     <div class="sign">도트증권 객장</div>
     <section id="board" class="board" aria-label="시세 전광판">
+      <!-- 종목 칸을 좌우로 나누고 그 사이에 시계·지수 패널을 둔다 -->
+      <div class="board-grid" id="board-grid-left"></div>
       <aside class="board-side">
         <div class="side-clock">
           <span class="clock" id="board-clock">--:--:--</span>
@@ -21,7 +23,7 @@
         </div>
         <div class="indices" id="board-indices"></div>
       </aside>
-      <div class="board-grid" id="board-grid"></div>
+      <div class="board-grid" id="board-grid-right"></div>
       <footer class="board-ticker"><div class="ticker-track" id="board-ticker"></div></footer>
     </section>
   </main>

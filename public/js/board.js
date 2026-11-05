@@ -59,7 +59,7 @@
   }
 
   function createBoard(opts) {
-    const { gridEl, indicesEl, statusEl, clockEl, dateEl, tickerEl, flashMs, indexNames, tickerIdle } = opts;
+    const { gridEls, indicesEl, statusEl, clockEl, dateEl, tickerEl, flashMs, indexNames, tickerIdle } = opts;
 
     const indexRows = new Map();
     for (const name of indexNames) {
@@ -84,6 +84,21 @@
     const flashing = new Map();
     let scheduled = false;
     let cols = 0, rows = 0;
+
+    let tickerShown = null;
+    let tickerNext = null;
+    function applyTicker(t) {
+      tickerShown = t;
+      tickerEl.textContent = t;
+      // 글 길이에 맞춰 흐르는 속도를 일정하게 유지한다
+      tickerEl.style.animationDuration = Math.max(12, t.length * 0.25) + 's';
+    }
+    tickerEl.addEventListener('animationiteration', () => {
+      if (tickerNext == null) return;
+      const t = tickerNext;
+      tickerNext = null;
+      applyTicker(t);
+    });
 
     function writeText(slot, key, el, text) {
       if (slot.last[key] !== text) {
@@ -119,15 +134,21 @@
       codeToSlot.clear();
       const size = cols * rows;
       slots = [];
-      const frag = document.createDocumentFragment();
-      for (let i = 0; i < size; i++) {
-        const slot = createSlot();
-        slots.push(slot);
-        frag.appendChild(slot.el);
-      }
-      gridEl.replaceChildren(frag);
-      gridEl.style.setProperty('--cols', cols);
-      gridEl.style.setProperty('--rows', rows);
+      // 열을 칸 묶음 수대로 나눠 앞쪽 묶음부터 채운다(왼쪽 칸 → 오른쪽 칸 순서)
+      let colsLeft = cols;
+      gridEls.forEach((el, g) => {
+        const c = Math.ceil(colsLeft / (gridEls.length - g));
+        colsLeft -= c;
+        const frag = document.createDocumentFragment();
+        for (let i = 0; i < c * rows; i++) {
+          const slot = createSlot();
+          slots.push(slot);
+          frag.appendChild(slot.el);
+        }
+        el.replaceChildren(frag);
+        el.style.setProperty('--cols', Math.max(1, c));
+        el.style.setProperty('--rows', rows);
+      });
       const n = Math.min(size, order.length);
       for (let i = 0; i < n; i++) bind(i);
     }
@@ -244,11 +265,13 @@
         statusEl.dataset.live = live ? '1' : '0';
       },
 
+      // 뉴스가 바뀔 때마다 흐르던 띠가 중간에 끊기지 않도록, 흐르는 중이면 한 바퀴가 끝난 뒤
+      // (글이 화면 오른쪽 밖으로 돌아간 순간) 바꿔 끼운다
       setTicker(text) {
-        tickerEl.textContent = text || tickerIdle;
-        // 글 길이에 맞춰 흐르는 속도를 일정하게 유지한다
-        const seconds = Math.max(12, tickerEl.textContent.length * 0.25);
-        tickerEl.style.animationDuration = seconds + 's';
+        const t = text || tickerIdle;
+        if (t === tickerShown) { tickerNext = null; return; }
+        if (tickerShown == null || tickerShown === tickerIdle) applyTicker(t);
+        else tickerNext = t;
       },
 
       clear() {

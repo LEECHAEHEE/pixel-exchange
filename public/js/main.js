@@ -36,7 +36,8 @@
   });
   document.getElementById('hint').addEventListener('click', () => help.toggle());
 
-  const gridEl = document.getElementById('board-grid');
+  // 종목 칸은 지수 패널 좌우로 두 묶음이다
+  const gridEls = [document.getElementById('board-grid-left'), document.getElementById('board-grid-right')];
   let scale = 1;
   let seatedView = false;
   let board = null;
@@ -59,11 +60,13 @@
     if (!board) return;
     const c = C.cell;
     const font = Math.min(c.maxFont, Math.max(c.minFont, c.fontPerScale * scale)) * (seatedView ? c.seatedBoost : 1);
-    gridEl.style.setProperty('--cell-font', font.toFixed(1) + 'px');
+    for (const el of gridEls) el.style.setProperty('--cell-font', font.toFixed(1) + 'px');
     const cellW = font * c.wEm + 1;
     const cellH = font * c.hEm + 1;
-    const cols = Math.max(1, Math.min(c.maxCols, Math.floor(gridEl.clientWidth / cellW)));
-    const rows = Math.max(1, Math.min(c.maxRows, Math.floor(gridEl.clientHeight / cellH)));
+    // 좌우 묶음 폭이 같으므로 한쪽 기준으로 열 수를 정하고 양쪽에 똑같이 둔다
+    const perSide = Math.max(1, Math.min(Math.floor(c.maxCols / gridEls.length), Math.floor(gridEls[0].clientWidth / cellW)));
+    const cols = perSide * gridEls.length;
+    const rows = Math.max(1, Math.min(c.maxRows, Math.floor(gridEls[0].clientHeight / cellH)));
     board.resize(cols, rows);
   }
 
@@ -105,7 +108,7 @@
   }
 
   board = PX.createBoard({
-    gridEl,
+    gridEls,
     indicesEl: document.getElementById('board-indices'),
     statusEl: document.getElementById('board-status'),
     clockEl: document.getElementById('board-clock'),
