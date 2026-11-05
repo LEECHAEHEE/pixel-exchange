@@ -60,6 +60,9 @@
     }
   }
 
+  // 다른 장소(places.js)도 같은 도트 그리기 도구를 쓴다
+  PX.pixel = { PAL, rng, makeCanvas, rect, parts, disc };
+
   // ---------- 배치 ----------
 
   const CHAIR_W = 14;
@@ -81,8 +84,20 @@
   }
   for (const p of PLANTS) BLOCKS.push({ x: p.x - 1, y: FLOOR_Y, w: 16, h: 14 });
   BLOCKS.push({ x: SHOPKEEPER.x - 5, y: SHOPKEEPER.y - 8, w: 11, h: 9 });
-  const BOUNDS = { x0: 4, y0: 120, x1: W - 4, y1: H - 1 };
   const AISLE_X = 160;
+
+  // 가운데 빨간 복도(카펫) 아래 끝이 출구. 끝에 닿으면 사거리 위쪽으로 넘어간다.
+  const CARPET_X = 148, CARPET_W = 24;
+
+  // 장소 하나의 모양. 발 위치가 walk 사각형 중 하나 안에 있어야 서 있을 수 있고,
+  // blocks 와 겹치면 막히며, exits 안에 들어서면 to 장소의 spawn 으로 옮겨 간다.
+  const EXCHANGE = {
+    walk: [{ x: 4, y: 120, w: W - 8, h: H - 121 }],
+    blocks: BLOCKS,
+    exits: [{ x: CARPET_X, y: H - 2, w: CARPET_W, h: 2, to: 'crossroad', spawn: { x: 160, y: 26, dir: 'down' } }],
+    aisle: AISLE_X,
+    floorY: FLOOR_Y
+  };
 
   // ---------- 정적 배경 ----------
 
@@ -154,10 +169,16 @@
     }
     rect(g, 0, FLOOR_Y, W, 2, PAL.floorShade);
 
+
     // 가운데 통로 카펫
     rect(g, 148, 120, 24, H - 120, PAL.carpetEdge);
     rect(g, 150, 120, 20, H - 120, PAL.carpet);
-    for (let y = 124; y < H; y += 8) rect(g, 159, y, 2, 2, PAL.carpetDot);
+    for (let y = 124; y < H - 12; y += 8) rect(g, 159, y, 2, 2, PAL.carpetDot);
+    // 카펫 아래 끝: 사거리로 나가는 쪽을 가리키는 화살표
+    for (let k = 0; k < 4; k++) {
+      rect(g, CARPET_X + 8 + k, H - 10 + k, 1, 1, PAL.signEdge);
+      rect(g, CARPET_X + 15 - k, H - 10 + k, 1, 1, PAL.signEdge);
+    }
 
     // 화분
     for (const p of PLANTS) {
@@ -289,9 +310,16 @@
 
   // ---------- 장면 ----------
 
+  // 지금 서 있는 장소. createScene 이 정한다.
+  let area = EXCHANGE;
+
+  function inside(r, x, y) {
+    return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+  }
+
   function hits(x, y) {
-    if (x < BOUNDS.x0 || x > BOUNDS.x1 || y < BOUNDS.y0 || y > BOUNDS.y1) return true;
-    for (const b of BLOCKS) {
+    if (!area.walk.some(r => inside(r, x, y))) return true;
+    for (const b of area.blocks) {
       if (x + 3 > b.x && x - 3 < b.x + b.w && y > b.y && y - 2 < b.y + b.h) return true;
     }
     return false;
@@ -299,10 +327,21 @@
 
 
   // 한 축씩 이동해 벽에 비스듬히 부딪혀도 미끄러지듯 움직이게 한다
+  // 한 걸음이 벽을 넘으면 걸음을 반씩 줄여 다시 본다. 프레임이 느려 한 걸음이 길어져도
+  // 벽(출구가 있는 화면 끝 포함) 바로 앞까지는 붙어 설 수 있게 한다.
+  function stepAxis(p, dx, dy) {
+    for (let k = 0; k < 4; k++) {
+      if (!hits(p.x + dx, p.y + dy)) { p.x += dx; p.y += dy; return true; }
+      dx /= 2;
+      dy /= 2;
+    }
+    return false;
+  }
+
   function moveBy(p, dx, dy) {
     let moved = false;
-    if (dx && !hits(p.x + dx, p.y)) { p.x += dx; moved = true; }
-    if (dy && !hits(p.x, p.y + dy)) { p.y += dy; moved = true; }
+    if (dx && stepAxis(p, dx, 0)) moved = true;
+    if (dy && stepAxis(p, 0, dy)) moved = true;
     if (Math.abs(dx) > Math.abs(dy)) p.dir = dx < 0 ? 'left' : 'right';
     else if (dy) p.dir = dy < 0 ? 'up' : 'down';
     return moved;
@@ -324,6 +363,13 @@
     const seatedBg = paintSeatedBackground();
     const chairImg = paintChair();
 
+    // 장소마다 배경은 처음 한 번만 그린다
+    const areas = { exchange: Object.assign({ bg }, EXCHANGE) };
+    for (const [id, place] of Object.entries(PX.places || {})) {
+      areas[id] = Object.assign({ bg: place.paint() }, place);
+    }
+    area = areas.exchange;
+
     // 의자 번호(index)는 서버와 같은 순서(줄 → 칸)로 매긴다. occupant 는 앉은 사람 객체.
     const statics = [];
     const seats = [];
@@ -339,7 +385,7 @@
       active: false,
       look: { hair: '#2a2220', shirt: '#3a5bbf', shirtLo: '#2c4596', pants: '#3a3a48' },
       x: 160, y: 172, dir: 'up', frame: 0, anim: 0, route: null, moving: false,
-      seat: null, standAt: null
+      seat: null, standAt: null, map: 'exchange'
     };
 
     // 다른 접속자. 서버가 0.1초마다 보내는 위치(tx, ty)를 향해 부드럽게 따라간다.
@@ -352,8 +398,32 @@
       x: SHOPKEEPER.x, y: SHOPKEEPER.y, dir: 'down', frame: 0
     };
 
-    // main.js 가 서버로 보내거나 창을 열 수 있게 앉기·일어나기·말 걸기를 알려준다
-    const hooks = { onSit() {}, onStand() {}, onTalk() {} };
+    // main.js 가 서버로 보내거나 창을 열 수 있게 앉기·일어나기·말 걸기·장소 이동을 알려준다
+    const hooks = { onSit() {}, onStand() {}, onTalk() {}, onGo() {} };
+
+    const inExchange = () => player.map === 'exchange';
+
+    // 나와 같은 장소에 있는 다른 접속자
+    function nearby() {
+      const list = [];
+      for (const r of remotes.values()) if (r.map === player.map) list.push(r);
+      return list;
+    }
+
+    // 장소를 옮기면 화면이 잠깐 어두웠다 밝아진다
+    const FADE_S = 0.3;
+    let fade = 0;
+
+    function enter(id, spawn) {
+      area = areas[id];
+      player.map = id;
+      player.x = spawn.x;
+      player.y = spawn.y;
+      player.dir = spawn.dir;
+      player.route = null;
+      fade = FADE_S;
+      hooks.onGo(id, player.x, player.y, player.dir);
+    }
 
     // 대화창·상점 창이 열려 있는 동안에는 캐릭터 조작을 막는다
     let locked = false;
@@ -368,6 +438,7 @@
     // 바라보는 방향으로 한 발 앞을 찍어 보고, 거기 닿는 빈 의자를 고른다.
     // 등받이 뒤·옆·앞 어느 쪽에서든 의자에 붙어 바라보면 앉을 수 있다.
     function seatFacing() {
+      if (!inExchange()) return null;
       const [dx, dy] = DIRV[player.dir];
       // 걸음이 1.8px 단위라 붙어 서도 1~2px 떨어질 수 있어 옆쪽은 조금 더 멀리 본다
       const px = player.x + dx * 10;
@@ -409,13 +480,13 @@
 
     // 의자 줄 사이는 막다른 틈이라, 곧장 못 가면 가운데 통로로 나갔다가 들어간다
     function routeTo(tx, ty) {
-      if (lineFree(player.x, player.y, tx, ty)) return [{ x: tx, y: ty }];
-      return [{ x: AISLE_X, y: player.y }, { x: AISLE_X, y: ty }, { x: tx, y: ty }];
+      if (!area.aisle || lineFree(player.x, player.y, tx, ty)) return [{ x: tx, y: ty }];
+      return [{ x: area.aisle, y: player.y }, { x: area.aisle, y: ty }, { x: tx, y: ty }];
     }
 
     // 상점 주인을 바라보며 붙어 서 있는지. 의자와 같은 방식으로 한 발 앞을 찍어 본다.
     function shopFacing() {
-      if (player.seat) return false;
+      if (player.seat || !inExchange()) return false;
       const [dx, dy] = DIRV[player.dir];
       const px = player.x + dx * 10;
       const py = player.y - 2 + dy * 6;
@@ -474,7 +545,7 @@
       if (!player.active || locked) return;
       // 착석 화면은 좌표계가 달라서, 아래 띠를 누르면 일어나기만 한다
       if (player.seat) { stand(); return; }
-      if (y < FLOOR_Y) return;
+      if (area.floorY && y < area.floorY) return;
       player.route = routeTo(Math.round(x), Math.round(y));
     });
 
@@ -515,6 +586,9 @@
       if (!moved) player.route = null;
       player.moving = moved;
       animate(player, moved, dt);
+
+      const exit = moved && area.exits.find(e => inside(e, player.x, player.y));
+      if (exit) enter(exit.to, exit.spawn);
     }
 
     // 서버 위치는 0.1초 간격이라, 그 사이를 걷는 속도로 채워 끊겨 보이지 않게 한다.
@@ -536,16 +610,21 @@
     }
 
     function update(dt) {
+      fade = Math.max(0, fade - dt);
       updatePlayer(dt);
       for (const r of remotes.values()) updateRemote(r, dt);
     }
 
     function render() {
       const now = new Date();
-      g.drawImage(bg, 0, 0);
+      g.drawImage(area.bg, 0, 0);
 
-      const list = statics.slice();
-      const people = player.active ? [shopkeeper, player, ...remotes.values()] : [shopkeeper, ...remotes.values()];
+      const list = inExchange() ? statics.slice() : [];
+      const people = nearby();
+      if (player.active) people.push(player);
+      if (inExchange()) people.push(shopkeeper);
+      // 장소가 따로 그릴 것(경마장의 말 등)을 사람과 같은 깊이 순서에 끼워 넣는다
+      if (area.decorate) area.decorate(list, g, now.getTime() / 1000);
       for (const p of people) {
         if (p.seat) {
           const s = p.seat;
@@ -567,6 +646,10 @@
 
       if (player.seat) composeSeated(player.seat);
       else screen.drawImage(world, 0, 0);
+      if (fade > 0) {
+        screen.fillStyle = `rgba(0,0,0,${(fade / FADE_S).toFixed(2)})`;
+        screen.fillRect(0, 0, W, H);
+      }
     }
 
     // 착석 띠: 내 자리를 가운데 두고 같은 줄 의자 등받이와 뒤통수만 확대해 보여준다
@@ -601,7 +684,7 @@
     // 원근 없이 머리 위치를 내 줄에 앉은 사람과 맞추므로, 내 줄 사람이 앉은 자리에서는 가려진다.
     function drawFront(sg, seat, sx, sw) {
       const list = [];
-      for (const p of [shopkeeper, ...remotes.values()]) {
+      for (const p of [shopkeeper, ...nearby()]) {
         if (!inFrontOf(seat, p)) continue;
         const x = Math.round(worldX(p) - sx);
         if (x < -8 || x > sw + 8) continue;
@@ -638,10 +721,10 @@
     //   who: 'me', 'shop'(상점 주인) 또는 접속자 id
     let stripSx = 0;
     function anchor(who) {
-      const p = who === 'shop' ? shopkeeper
+      const p = who === 'shop' ? (inExchange() ? shopkeeper : null)
         : who === 'me' ? (player.active ? player : null)
         : remotes.get(who);
-      if (!p) return null;
+      if (!p || (p.map && p.map !== player.map)) return null;
       if (player.seat) {
         // 착석 화면 아래 띠에는 내 줄 사람과 내 앞사람이 같은 높이로 보인다
         if (!inFrontOf(player.seat, p) && (!p.seat || p.seat.y !== player.seat.y)) return null;
@@ -679,12 +762,14 @@
       welcome(me, users) {
         for (const s of seats) s.occupant = null;
         remotes.clear();
-        Object.assign(player, { active: true, look: me.look, x: me.x, y: me.y, dir: me.dir, seat: null, route: null });
+        const map = areas[me.map] ? me.map : 'exchange';
+        Object.assign(player, { active: true, look: me.look, x: me.x, y: me.y, dir: me.dir, seat: null, route: null, map });
+        area = areas[map];
         for (const u of users) net.add(u);
       },
 
       add(u) {
-        const r = { id: u.id, name: u.name, look: u.look, x: u.x, y: u.y, tx: u.x, ty: u.y, dir: u.dir, moving: !!u.moving, frame: 0, anim: 0, seat: null };
+        const r = { id: u.id, name: u.name, look: u.look, map: u.map || 'exchange', x: u.x, y: u.y, tx: u.x, ty: u.y, dir: u.dir, moving: !!u.moving, frame: 0, anim: 0, seat: null };
         remotes.set(u.id, r);
         if (u.seat != null) occupy(r, u.seat);
       },
@@ -719,6 +804,17 @@
         r.dir = dir;
       },
 
+      // 다른 사람이 장소를 옮겼다. 다른 장소에 있는 사람은 그리지 않는다.
+      go(id, map, x, y, dir) {
+        const r = remotes.get(id);
+        if (!r) return;
+        vacate(r);
+        r.map = map;
+        r.x = r.tx = x;
+        r.y = r.ty = y;
+        r.dir = dir;
+      },
+
       // 서버가 앉기를 거절했을 때(다른 사람이 먼저 앉음)
       sitDenied() {
         if (player.seat) stand(true);
@@ -744,6 +840,7 @@
     return {
       update, render, prompt, anchor, releaseKeys, setLocked, player, hooks, net,
       shopkeeperName: shopkeeper.name,
+      get map() { return player.map; },
       get seatedView() { return !!player.seat; }
     };
   }

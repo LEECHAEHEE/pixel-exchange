@@ -77,6 +77,24 @@
   place(boardEl, C.board);
   place(document.querySelector('.sign'), C.sign);
 
+  // 장소별 안내 글씨. 장소를 옮길 때 그 장소 것만 보인다.
+  const labelEls = C.labels.map((l) => {
+    const el = document.createElement('div');
+    el.className = 'label' + (l.cls ? ' ' + l.cls : '');
+    el.textContent = l.text;
+    el.dataset.map = l.map;
+    place(el, l);
+    stage.insertBefore(el, boardEl);
+    return el;
+  });
+  let shownMap = '';
+  function showMap(map) {
+    if (map === shownMap) return;
+    shownMap = map;
+    stage.dataset.map = map;
+    for (const el of labelEls) el.hidden = el.dataset.map !== map;
+  }
+
   board = PX.createBoard({
     gridEl,
     indicesEl: document.getElementById('board-indices'),
@@ -113,15 +131,22 @@
     chat.say('shop', reason === 'shop' ? '감사합니다. 또 오세요!' : '안녕히 가세요!');
   };
 
+  // 경마: 경마장 가운데 전광판과 말 위치
+  const race = PX.createRace({ stage, scene });
+  place(race.el, C.racePanel);
+  PX.race = race;
+
   const frameMs = 1000 / C.renderFps;
   let last = performance.now();
 
   const hintEl = document.getElementById('hint');
   const HINTS = {
-    free: '방향키로 이동 · 빈 의자에 붙어 바라보고 Space 로 앉기 · Enter 로 채팅',
+    free: '방향키로 이동 · 빈 의자 바라보고 Space 로 앉기 · 빨간 복도 아래는 사거리 · Enter 채팅',
     near: 'Space 로 앉기',
     talk: 'Space 로 상점 주인에게 말 걸기',
-    seated: 'Space 또는 ↓ ← → 로 일어나기'
+    seated: 'Space 또는 ↓ ← → 로 일어나기',
+    'crossroad:free': '방향키로 이동 · 아래 복도는 경마장, 위 복도는 객장 · Enter 로 채팅',
+    'racetrack:free': '1~5 키 또는 전광판 클릭으로 우승마 투표 · 위쪽 출입문은 사거리 · Enter 로 채팅'
   };
   let hintState = 'free';
 
@@ -134,8 +159,10 @@
     scene.update(dt);
     scene.render();
     chat.update(now);
+    race.update();
 
-    const state = scene.prompt();
+    showMap(scene.map);
+    const state = scene.map === 'exchange' ? scene.prompt() : scene.map + ':' + scene.prompt();
     if (state !== hintState) {
       // 앉으면 전광판을 크게, 일어나면 원래 자리로
       const seated = state === 'seated';
@@ -188,6 +215,7 @@
         chat.setName('me', msg.me.name);
         for (const u of msg.users) chat.setName(u.id, u.name);
         applyMarket(msg.market);
+        if (msg.race) race.apply(msg.race);
         refreshOnline();
       },
       join(msg) {
@@ -208,7 +236,12 @@
       sit(msg) { if (msg.id !== myId) scene.net.sit(msg.id, msg.seat); },
       stand(msg) { if (msg.id !== myId) scene.net.stand(msg.id, msg.x, msg.y, msg.dir); },
       sitDenied() { scene.net.sitDenied(); },
+      go(msg) { if (msg.id !== myId) scene.net.go(msg.id, msg.map, msg.x, msg.y, msg.dir); },
       chat(msg) { chat.say(whoOf(msg.id), msg.text); },
+
+      race(msg) { race.apply(msg); },
+      raceVotes(msg) { race.setCounts(msg.counts); },
+      raceVote(msg) { race.setMine(msg.horse, msg.reason); },
 
       symbols(msg) { board.setSymbols(msg.symbols); },
       ticks(msg) { board.push(msg.ticks); },
@@ -220,7 +253,9 @@
 
   scene.hooks.onSit = (seat) => net.send({ t: 'sit', seat });
   scene.hooks.onStand = (x, y, dir) => net.send({ t: 'stand', x, y, dir });
+  scene.hooks.onGo = (map, x, y, dir) => net.send({ t: 'go', map, x, y, dir });
   chat.onSend = (text) => net.send({ t: 'chat', text });
+  race.onVote = (horse) => net.send({ t: 'vote', horse });
 
   // 내 위치는 0.1초마다, 바뀌었을 때만 보낸다
   let sent = '';

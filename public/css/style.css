@@ -48,7 +48,7 @@ body {
 }
 
 /* 위치는 화면 배율(--ps), 전광판 안쪽 크기는 글자 배율을 곱한 --s 를 쓴다 */
-.sign, .board {
+.sign, .board, .label, .race-panel {
   position: absolute;
   left: calc(var(--x) * var(--ps) * 1px);
   top: calc(var(--y) * var(--ps) * 1px);
@@ -57,6 +57,98 @@ body {
 }
 
 .stage.seated .sign { display: none; }
+
+/* 객장 밖에서는 간판·전광판을 감춘다. 크기는 유지해야 창 크기를 바꿔도 칸 수 계산이 맞다. */
+.stage:not([data-map='exchange']) .sign,
+.stage:not([data-map='exchange']) .board { visibility: hidden; }
+
+/* ---------- 경마장 전광판 ---------- */
+
+.race-panel {
+  display: none;
+  grid-template-rows: auto 1fr;
+  gap: calc(var(--ps) * 1px);
+  padding: calc(var(--ps) * 1px);
+  color: #ffb84a;
+  font-size: calc(var(--ps) * 3.6px);
+  line-height: 1.1;
+  contain: strict;
+}
+.stage[data-map='racetrack'] .race-panel { display: grid; }
+
+.race-title {
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 0 calc(var(--ps) * 1px) rgba(255, 184, 74, 0.6);
+}
+
+.race-chips {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: calc(var(--ps) * 1px);
+  min-height: 0;
+}
+
+.race-chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--ps) * 1.5px);
+  padding: 0 calc(var(--ps) * 1px);
+  font: inherit;
+  color: #e8e8e8;
+  background: #1d2128;
+  border: calc(var(--ps) * 0.5px) solid #3a3f48;
+  cursor: pointer;
+  min-height: 0;
+}
+.race-chip:hover { border-color: #8a8f99; }
+/* 기수 옷 색 견본 */
+.race-chip i {
+  flex: none;
+  width: calc(var(--ps) * 3px);
+  height: calc(var(--ps) * 3px);
+  background: var(--silk);
+  outline: calc(var(--ps) * 0.5px) solid #000;
+}
+.race-chip span { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.2; }
+.race-chip b { font-weight: normal; }
+.race-chip small { font-size: 0.9em; color: #8a8f99; }
+.race-chip.mine { border-color: var(--gold); }
+.race-chip.mine small { color: var(--gold); }
+.race-chip.lead small { color: #5dff7a; }
+.race-chip.win { background: #4a3a10; border-color: var(--gold); }
+.race-chip.win b, .race-chip.win small { color: #fff4c2; }
+
+/* 장소별 안내 글씨 */
+.label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: calc(var(--ps) * 4px);
+  white-space: nowrap;
+  background: rgba(20, 14, 10, 0.55);
+  border-radius: calc(var(--ps) * 1px);
+  pointer-events: none;
+}
+.label[hidden], .stage.seated .label { display: none; }
+.label.gate {
+  background: none;
+  color: var(--gold);
+  font-size: calc(var(--ps) * 5.5px);
+  letter-spacing: calc(var(--ps) * 0.5px);
+  text-shadow: calc(var(--ps) * 0.5px) calc(var(--ps) * 0.5px) 0 #4a1210;
+}
+.label.tote {
+  background: none;
+  color: #ffb84a;
+  font-family: var(--mono);
+  font-size: calc(var(--ps) * 4.5px);
+  text-shadow: 0 0 calc(var(--ps) * 1px) rgba(255, 184, 74, 0.6);
+}
 
 .sign {
   display: flex;

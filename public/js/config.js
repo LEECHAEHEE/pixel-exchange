@@ -14,6 +14,16 @@ PX.config = {
   seatedStrip: { y: 158, h: 22, zoom: 2 },
   sign:  { x: 118, y: 5, w: 84, h: 10 },
 
+  // 장소별 안내 글씨(DOM). map 이 지금 장소일 때만 보인다. cls 로 모양을 고른다.
+  labels: [
+    { map: 'crossroad', x: 180, y: 8, w: 70, h: 9, text: '↑ 도트증권 객장' },
+    { map: 'crossroad', x: 188, y: 160, w: 52, h: 9, text: '경마장 ↓' },
+    { map: 'crossroad', x: 6, y: 120, w: 40, h: 8, text: '공사 중' },
+    { map: 'crossroad', x: 274, y: 120, w: 40, h: 8, text: '공사 중' },
+    { map: 'racetrack', x: 120, y: 2, w: 80, h: 9, text: '도트 경마장', cls: 'gate' },
+    { map: 'racetrack', x: 178, y: 20, w: 40, h: 8, text: '↑ 사거리' }
+  ],
+
   // 종목 칸. 글자 크기(px)를 화면 배율에 맞춰 min~max 사이로 정하고,
   // 칸 하나에 필요한 크기(글자 수 기준 em)로 전광판을 나눠 열·줄 수를 정한다.
   //   wEm  두 번째 줄 '1,234,567 ▲+29.99%' 가 들어가는 폭
@@ -28,6 +38,9 @@ PX.config = {
   // 전광판 왼쪽 패널에 시계 아래로 이 순서대로 쌓인다
   indices: ['KOSPI', 'KOSDAQ'],
   tickerIdle: '서버에서 시세를 기다리는 중입니다',
+
+  // 경마장 가운데 전광판(투표·순위·결과). 주로 안쪽 잔디에 들어가는 크기.
+  racePanel: { x: 76, y: 107, w: 168, h: 30 },
 
   // 말풍선 유지 시간과 한 번에 보낼 수 있는 글자 수
   chat: { durationMs: 5000, maxLength: 60 },

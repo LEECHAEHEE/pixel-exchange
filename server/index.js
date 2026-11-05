@@ -9,6 +9,7 @@ const path = require('path');
 const { WebSocketServer } = require('ws');
 const { createRoom } = require('./room');
 const { createMarket, startSource } = require('./market');
+const { createRace } = require('./race');
 
 const PORT = Number(process.env.PORT) || 5178;
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
@@ -56,7 +57,13 @@ const server = http.createServer(serveStatic);
 const wss = new WebSocketServer({ server, path: '/ws', maxPayload: MAX_MSG_BYTES });
 
 const market = createMarket();
-const room = createRoom({ market });
+// 경마는 방 전체에 알리고, 방은 입장할 때 경마 상태를 같이 보내므로 서로를 참조한다
+let room = null;
+const race = createRace({
+  broadcast: msg => room && room.broadcast(msg),
+  cycleMs: Number(process.env.RACE_CYCLE_SEC) * 1000 || undefined
+});
+room = createRoom({ market, race });
 market.attach(msg => room.broadcast(msg));
 startSource(market, process.env);
 

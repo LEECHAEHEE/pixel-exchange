@@ -5,7 +5,8 @@
   "description": "도트 그래픽 온라인 증권 객장 (실시간 시세 전광판 + 멀티플레이)",
   "main": "server/index.js",
   "scripts": {
-    "start": "node server/index.js"
+    "start": "node server/index.js",
+    "race:check": "node scripts/race-check.js"
   },
   "engines": {
     "node": ">=20"
