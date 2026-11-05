@@ -747,7 +747,8 @@
       // 착석 화면은 좌표계가 달라서, 아래 띠를 누르면 일어나기만 한다
       if (player.seat) { stand(); return; }
       if (area.floorY && y < area.floorY) return;
-      player.route = routeTo(Math.round(x), Math.round(y));
+      // 반올림하면 화면 맨 아래(출구)를 눌렀을 때 바닥 밖(y=180)이 되어 거기까지 못 간다
+      player.route = routeTo(Math.floor(x), Math.floor(y));
     });
 
     const PLAYER_SPEED = 55;
@@ -775,6 +776,8 @@
           if (player.route.length === 0) player.route = null;
           player.moving = true;
           animate(player, true, dt);
+          // 클릭으로 출구까지 걸어온 경우도 옮겨 가야 한다
+          checkExit();
           return;
         }
         dx = tx / dist;
@@ -787,8 +790,11 @@
       if (!moved) player.route = null;
       player.moving = moved;
       animate(player, moved, dt);
+      if (moved) checkExit();
+    }
 
-      const exit = moved && area.exits.find(e => inside(e, player.x, player.y));
+    function checkExit() {
+      const exit = area.exits.find(e => inside(e, player.x, player.y));
       if (exit) enter(exit.to, exit.spawn);
     }
 
