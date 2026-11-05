@@ -6,6 +6,9 @@
 const SEAT_COUNT = 42;
 const BOUNDS = { x0: 4, y0: 120, x1: 316, y1: 179 };
 const DIRS = new Set(['up', 'down', 'left', 'right']);
+// 감정표현 종류. 화면(emote.js·scene.js)에 새 표현을 넣으면 여기도 추가한다.
+const EMOTES = new Set(['bow']);
+const EMOTE_GAP_MS = 500;
 
 const NAME_MAX = 12;
 const CHAT_MAX = 60;
@@ -152,6 +155,13 @@ function createRoom({ market }) {
         if (x !== null && y !== null) { u.x = x; u.y = y; }
         if (DIRS.has(msg.dir)) u.dir = msg.dir;
         broadcast({ t: 'stand', id: u.id, x: u.x, y: u.y, dir: u.dir });
+        return;
+      }
+      case 'emote': {
+        const now = Date.now();
+        if (!EMOTES.has(msg.emote) || now - (u.lastEmote || 0) < EMOTE_GAP_MS) return;
+        u.lastEmote = now;
+        broadcast({ t: 'emote', id: u.id, emote: msg.emote });
         return;
       }
       case 'equip': {

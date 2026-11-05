@@ -115,9 +115,11 @@
   };
 
   // 인벤토리(I): 상점에서 산 아이템을 보관하고 입는다. 착용은 서버로 알려 다른 사람에게도 보이게 한다.
+  // 감정표현 판(C)은 아래에서 만든다. 인벤토리가 열 수 있는지 판단할 때 함께 본다.
+  let emote = null;
   const inventory = PX.createInventory({
     getBaseLook: () => scene.player.baseLook,
-    canOpen: () => scene.player.active && !shop.open
+    canOpen: () => scene.player.active && !shop.open && !(emote && emote.open)
   });
   shop.onBuy = (item) => inventory.add(item.id);
   shop.isOwned = (id) => inventory.has(id);
@@ -126,12 +128,18 @@
   inventory.onClose = () => scene.setLocked(false);
   // onEquip 은 서버 연결(net)을 만든 뒤 아래에서 연결한다
 
+  // 감정표현(C): 채팅 입력줄 자리에 방향키 판. ↑ 인사.
+  emote = PX.createEmote({
+    chatForm: document.getElementById('chat-form'),
+    canOpen: () => scene.player.active && !shop.open && !inventory.open
+  });
+
   const frameMs = 1000 / C.renderFps;
   let last = performance.now();
 
   const hintEl = document.getElementById('hint');
   const HINTS = {
-    free: '방향키로 이동 · 빈 의자에 붙어 바라보고 Space 로 앉기 · Enter 채팅 · M 채팅 기록 · I 인벤토리',
+    free: '방향키로 이동 · 빈 의자에 붙어 바라보고 Space 로 앉기 · Enter 채팅 · C 감정표현 · M 채팅 기록 · I 인벤토리',
     near: 'Space 로 앉기',
     talk: 'Space 로 상점 주인에게 말 걸기',
     seated: 'Space 또는 ↓ ← → 로 일어나기'
@@ -224,6 +232,7 @@
       stand(msg) { if (msg.id !== myId) scene.net.stand(msg.id, msg.x, msg.y, msg.dir); },
       sitDenied() { scene.net.sitDenied(); },
       equip(msg) { if (msg.id !== myId) scene.net.equip(msg.id, msg.equip); },
+      emote(msg) { if (msg.id !== myId) scene.playEmote(msg.id, msg.emote); },
       chat(msg) {
         chat.say(whoOf(msg.id), msg.text);
         chat.addLog(msg.name || '?', msg.text);
@@ -241,6 +250,10 @@
   inventory.onEquip = (ids) => {
     scene.setMyEquip(ids);
     net.send({ t: 'equip', equip: ids });
+  };
+  emote.onEmote = (type) => {
+    scene.playEmote('me', type);
+    net.send({ t: 'emote', emote: type });
   };
   scene.hooks.onStand = (x, y, dir) => net.send({ t: 'stand', x, y, dir });
   chat.onSend = (text) => net.send({ t: 'chat', text });
@@ -285,4 +298,5 @@
   PX.net = net;
   PX.shop = shop;
   PX.inventory = inventory;
+  PX.emote = emote;
 })();

@@ -38,6 +38,7 @@ New → Blueprint 로 `render.yaml` 을 그대로 쓴다. 빌드는 `npm ci`, �
 | 채팅 | Enter → 입력 → Enter. Esc 는 취소 | 입력창 클릭 |
 | 상점 | 오른쪽 상점 주인을 바라보고 Space → 구매한다 / 나간다 (↑↓ 고르고 Space·Enter) | 항목 클릭 |
 | 인벤토리 | I 로 열고 닫음. ← → 분류 탭, ↑↓ 고르기, Space 착용/해제, Ctrl+← → 미리보기 캐릭터 돌리기. 한 탭에 최대 5개가 보이고 나머지는 스크롤 | 버튼 클릭 |
+| 감정표현 | C 로 채팅 입력줄 자리에 방향키 판을 열고, ↑ 인사(고개를 숙이는 꾸벅 인사, 약 1.4초). 다른 방향은 준비 중. C·Esc 로 닫기 | 판의 버튼 클릭 |
 | 채팅 기록 | M 으로 `닉네임 : 내용` 목록을 열고 닫음. 서버가 켜진 뒤의 최근 100건(서버 메모리, 서버를 끄면 사라짐). 입장 전 채팅도 보임 | 없음 |
 | 화면 가리기 | X 로 화면 전체를 까맣게(`[화면 가리기]` 표시), 다시 X 로 원래대로. 입력칸에서 글자 칠 때는 동작 안 함 | 없음 |
 
@@ -62,6 +63,7 @@ New → Blueprint 로 `render.yaml` 을 그대로 쓴다. 빌드는 `npm ci`, �
 | `public/js/items.js` | 아이템 목록, 도트 아이콘, 착용 규칙 |
 | `public/js/shop.js` | 상점 주인 대화창, 상점 창 |
 | `public/js/inventory.js` | 인벤토리 창, 보유·착용 저장 |
+| `public/js/emote.js` | 감정표현 판(C). 표현을 늘리려면 `EMOTES` 와 `scene.js` 의 자세, `server/room.js` 의 `EMOTES` 에 추가 |
 | `public/js/net.js` | 서버 연결, 끊기면 자동 재접속(같은 닉네임으로 재입장) |
 | `public/js/main.js` | 화면 배율, 그리기 루프, 입장 화면, 서버 메시지 연결 |
 
@@ -83,6 +85,8 @@ New → Blueprint 로 `render.yaml` 을 그대로 쓴다. 빌드는 `npm ci`, �
 | → 서버 | `chat` | `{ text }` |
 | → 서버 | `equip` | `{ equip: [아이템 id] }` 착용 변경. `join` 에도 `equip` 을 함께 보낸다 |
 | ← 서버 | `equip` | `{ id, equip }` 다른 사람 착용 변경 |
+| → 서버 | `emote` | `{ emote: 'bow' }` 감정표현. 서버는 정해진 종류만, 0.5초에 한 번까지 받는다 |
+| ← 서버 | `emote` | `{ id, emote }` 다른 사람 감정표현 |
 | ← 서버 | `welcome` | 내 정보, 이미 있는 사람들, 시세 스냅샷 |
 | ← 서버 | `join` / `leave` | 다른 사람 입장·퇴장 |
 | ← 서버 | `moves` | `[[id, x, y, dir, moving], ...]` 묶음 |

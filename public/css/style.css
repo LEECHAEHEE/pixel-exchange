@@ -271,6 +271,44 @@ body {
   text-overflow: ellipsis;
 }
 
+/* ---------- 감정표현 판 (C): 채팅 입력줄 자리를 대신한다 ---------- */
+
+.emote {
+  flex: 0 1 470px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  height: 28px;
+  padding: 0 8px;
+  color: #f4ead8;
+  background: #2a1f19;
+  border: 2px solid var(--gold);
+}
+.emote[hidden] { display: none; }
+.emote-title { font-size: 12px; color: var(--gold); white-space: nowrap; }
+.emote-hint { margin-left: auto; flex: none; font-size: 11px; color: #8a7a68; white-space: nowrap; }
+.emote-pad { display: flex; gap: 4px; min-width: 0; flex: 0 1 auto; overflow: hidden; }
+.emote-title { flex: none; }
+.emote-key {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 20px;
+  padding: 0 6px;
+  font: 12px var(--font);
+  color: #1b1410;
+  background: var(--gold);
+  border: 0;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.emote-key b { font-weight: normal; }
+.emote-key.empty { color: #8a7a68; background: #3d2a1f; }
+.emote-key.blink { animation: emote-blink 0.3s; }
+@keyframes emote-blink { 50% { background: #5e3a22; } }
+
 /* 말풍선은 무대 왼쪽 위를 기준점으로 두고 transform 으로만 옮긴다 */
 .bubbles {
   position: absolute;

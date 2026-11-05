@@ -194,16 +194,21 @@
   // ---------- 사람 ----------
 
   // (x, y) 는 발끝 가운데. frame 0 은 정지, 1·2 는 걷기 동작.
-  function drawPerson(g, x, y, look, dir, frame) {
+  // pose: 감정표현 중일 때의 자세. { bow: 0|1|2 } 는 꾸벅 인사(머리를 숙인 칸 수).
+  function drawPerson(g, x, y, look, dir, frame, pose) {
     rect(g, x - 4, y - 1, 8, 2, 'rgba(0,0,0,0.18)');
 
     const lUp = frame === 1 ? 1 : 0;
     const rUp = frame === 2 ? 1 : 0;
+    // 꾸벅 인사: 머리가 몸 쪽으로 내려오고(어깨를 덮는다), 옆모습이면 끝까지 숙일 때 앞으로 한 칸 나간다
+    const bow = pose && pose.bow ? pose.bow : 0;
+    const lean = bow === 2 ? (dir === 'left' ? -1 : dir === 'right' ? 1 : 0) : 0;
+    const cx = x + lean;
     const p = [
       [x - 3, y - 4, 3, 3 - lUp, look.pants],
       [x + 1, y - 4, 3, 3 - rUp, look.pants],
       [x - 4, y - 10, 8, 6, look.shirt],
-      [x - 4, y - 17, 8, 7, PAL.skin]
+      [cx - 4, y - 17 + bow, 8, 7, PAL.skin]
     ];
     parts(g, p);
 
@@ -292,37 +297,40 @@
       rect(g, x - 1, y - 7, 2, 1, PAL.paper);
     }
 
-    // 머리카락·눈
-    const hy = y - 17;
+    // 머리카락·눈. 숙일수록 정수리(머리카락)가 더 보이고, 끝까지 숙이면 눈이 안 보인다.
+    const hy = y - 17 + bow;
     const hair = look.hair;
+    const crownRows = 2 + bow;
     if (dir === 'up') {
-      rect(g, x - 4, hy, 8, 6, hair);
-      rect(g, x - 4, hy + 3, 1, 2, PAL.skin);
-      rect(g, x + 3, hy + 3, 1, 2, PAL.skin);
+      rect(g, cx - 4, hy, 8, 6, hair);
+      rect(g, cx - 4, hy + 3, 1, 2, PAL.skin);
+      rect(g, cx + 3, hy + 3, 1, 2, PAL.skin);
     } else if (dir === 'down') {
-      rect(g, x - 4, hy, 8, 2, hair);
-      rect(g, x - 4, hy + 2, 1, 2, hair);
-      rect(g, x + 3, hy + 2, 1, 2, hair);
-      rect(g, x - 2, hy + 4, 1, 1, PAL.eye);
-      rect(g, x + 1, hy + 4, 1, 1, PAL.eye);
+      rect(g, cx - 4, hy, 8, crownRows, hair);
+      rect(g, cx - 4, hy + 2, 1, 2, hair);
+      rect(g, cx + 3, hy + 2, 1, 2, hair);
+      if (bow < 2) {
+        rect(g, cx - 2, hy + 4, 1, 1, PAL.eye);
+        rect(g, cx + 1, hy + 4, 1, 1, PAL.eye);
+      }
     } else {
       const s = dir === 'left' ? 1 : -1;
-      rect(g, x - 4, hy, 8, 2, hair);
-      rect(g, s > 0 ? x : x - 4, hy + 2, 4, 3, hair);
-      rect(g, x - 3 * s - (s < 0 ? 1 : 0), hy + 4, 1, 1, PAL.eye);
+      rect(g, cx - 4, hy, 8, crownRows, hair);
+      rect(g, s > 0 ? cx : cx - 4, hy + 2, 4, 3, hair);
+      if (bow < 2) rect(g, cx - 3 * s - (s < 0 ? 1 : 0), hy + 4, 1, 1, PAL.eye);
     }
 
     // 귀걸이: 귀 바로 아래 금색 점. 옆모습이면 보이는 쪽 귀에만.
     if (look.earring) {
-      if (dir === 'left') rect(g, x + 4, hy + 5, 1, 1, look.earring);
-      else if (dir === 'right') rect(g, x - 5, hy + 5, 1, 1, look.earring);
+      if (dir === 'left') rect(g, cx + 4, hy + 5, 1, 1, look.earring);
+      else if (dir === 'right') rect(g, cx - 5, hy + 5, 1, 1, look.earring);
       else {
-        rect(g, x - 5, hy + 5, 1, 1, look.earring);
-        rect(g, x + 4, hy + 5, 1, 1, look.earring);
+        rect(g, cx - 5, hy + 5, 1, 1, look.earring);
+        rect(g, cx + 4, hy + 5, 1, 1, look.earring);
       }
     }
 
-    drawHeadwear(g, x, hy, look, dir);
+    drawHeadwear(g, cx, hy, look, dir);
   }
 
   // 머리에 쓰는 것. x 는 머리 가운데(머리는 x-4 ~ x+3), hy 는 머리 꼭대기 줄.
@@ -394,9 +402,10 @@
   }
 
   // 의자에 앉은 뒷모습: 머리만 등받이 위로 보인다
-  function drawSeated(g, x, y, look, tilt) {
+  // 꾸벅 인사하면 머리가 등받이 쪽으로 내려가 일부가 등받이에 가려진다
+  function drawSeated(g, x, y, look, tilt, pose) {
     const hx = x + 3 + tilt;
-    const hy = y - 6;
+    const hy = y - 6 + (pose && pose.bow ? pose.bow : 0);
     parts(g, [[hx, hy, 8, 7, PAL.skin]]);
     if (look.bald) {
       rect(g, hx, hy + 2, 1, 4, look.hair);
@@ -681,15 +690,16 @@
       g.drawImage(bg, 0, 0);
 
       const list = statics.slice();
+      const nowMs = performance.now();
       const people = player.active ? [shopkeeper, player, ...remotes.values()] : [shopkeeper, ...remotes.values()];
       for (const p of people) {
         if (p.seat) {
           const s = p.seat;
-          list.push({ key: s.y + CHAIR_H - 0.5, draw: () => drawSeated(g, s.x, s.y, p.look, 0) });
+          list.push({ key: s.y + CHAIR_H - 0.5, draw: () => drawSeated(g, s.x, s.y, p.look, 0, poseOf(p, nowMs)) });
           continue;
         }
         const px = Math.round(p.x), py = Math.round(p.y);
-        list.push({ key: py, draw: () => drawPerson(g, px, py, p.look, p.dir, p.frame) });
+        list.push({ key: py, draw: () => drawPerson(g, px, py, p.look, p.dir, p.frame, poseOf(p, nowMs)) });
       }
       list.sort((a, b) => a.key - b.key);
       for (const it of list) it.draw();
@@ -725,7 +735,7 @@
         if (s.y !== seat.y || s.x + CHAIR_W < sx || s.x > sx + sw) continue;
         const x = s.x - sx;
         const y = s.y + oy;
-        if (s.occupant) drawSeated(sg, x, y, s.occupant.look, 0);
+        if (s.occupant) drawSeated(sg, x, y, s.occupant.look, 0, poseOf(s.occupant, performance.now()));
         sg.drawImage(chairImg, x, y);
       }
 
@@ -747,8 +757,9 @@
       list.sort((a, b) => a.key - b.key);
       for (const { p, x } of list) {
         // 띠 안에서 머리 꼭대기가 2번째 줄에 오게 맞춘다(내 줄에 앉은 머리와 같은 높이)
-        if (p.seat) drawSeated(sg, x - CHAIR_W / 2, 8, p.look, 0);
-        else drawPerson(sg, x, 19, p.look, p.dir, p.frame);
+        const pose = poseOf(p, performance.now());
+        if (p.seat) drawSeated(sg, x - CHAIR_W / 2, 8, p.look, 0, pose);
+        else drawPerson(sg, x, 19, p.look, p.dir, p.frame, pose);
       }
     }
 
@@ -897,8 +908,33 @@
       else player.equip = ids.slice();
     }
 
+    // ---------- 감정표현 ----------
+
+    // 꾸벅 인사 순서: 반쯤 숙임 → 끝까지 숙여 잠시 멈춤 → 반쯤 → 바로 섬
+    const EMOTE_MS = { bow: 1400 };
+    const BOW_STEPS = [[150, 1], [950, 2], [1150, 1]];
+
+    // who: 'me' 또는 접속자 id. 같은 사람이 다시 하면 처음부터 다시 한다.
+    function playEmote(who, type) {
+      const p = who === 'me' ? player : remotes.get(who);
+      if (!p || !EMOTE_MS[type]) return;
+      const now = performance.now();
+      p.emote = { type, start: now, until: now + EMOTE_MS[type] };
+    }
+
+    function poseOf(p, now) {
+      const e = p.emote;
+      if (!e || now >= e.until) return null;
+      if (e.type === 'bow') {
+        const t = now - e.start;
+        const step = BOW_STEPS.find(([end]) => t < end);
+        return step ? { bow: step[1] } : null;
+      }
+      return null;
+    }
+
     return {
-      update, render, prompt, anchor, releaseKeys, setLocked, setMyEquip, player, hooks, net,
+      update, render, prompt, anchor, releaseKeys, setLocked, setMyEquip, playEmote, player, hooks, net,
       shopkeeperName: shopkeeper.name,
       get seatedView() { return !!player.seat; }
     };
