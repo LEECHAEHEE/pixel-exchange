@@ -512,6 +512,22 @@ body {
 .shop-msg { color: #4fd16a; }
 .shop-keys { color: #8a7a68; margin-left: auto; }
 
+/* ---------- 화면 가리기 (X) ---------- */
+
+.cover {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  color: #3a3a3a;
+  background: #000;
+  cursor: default;
+  user-select: none;
+}
+.cover[hidden] { display: none; }
+
 /* ---------- 입장 화면 ---------- */
 
 .join {

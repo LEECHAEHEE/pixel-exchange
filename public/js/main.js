@@ -4,6 +4,29 @@
   const stage = document.getElementById('stage');
   const canvas = document.getElementById('scene');
 
+  // X 키로 화면 전체를 까맣게 가렸다가 다시 X 로 되돌린다.
+  // 캐릭터·채팅·상점보다 먼저 키를 받아야 해서 다른 키 처리보다 가장 먼저 등록한다.
+  const coverEl = document.getElementById('cover');
+  window.addEventListener('keydown', (e) => {
+    const t = e.target;
+    const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+    if (e.code === 'KeyX' && !typing && !e.repeat && !e.isComposing) {
+      coverEl.hidden = !coverEl.hidden;
+      if (!coverEl.hidden) {
+        PX.scene && PX.scene.releaseKeys();
+        if (document.activeElement) document.activeElement.blur();
+      }
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      return;
+    }
+    // 가려져 있는 동안에는 다른 키가 캐릭터·채팅·상점으로 가지 않게 한다
+    if (!coverEl.hidden) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    }
+  }, true);
+
   const gridEl = document.getElementById('board-grid');
   let scale = 1;
   let seatedView = false;

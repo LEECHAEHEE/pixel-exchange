@@ -583,6 +583,8 @@
       const oy = 8 - seat.y;
 
       rect(sg, 0, 0, sw, sh, PAL.ceiling);
+      // 앞사람을 먼저 그려 내 줄 사람·의자 뒤로 지나가게 한다
+      drawFront(sg, seat, sx, sw);
       for (const s of seats) {
         if (s.y !== seat.y || s.x + CHAIR_W < sx || s.x > sx + sw) continue;
         const x = s.x - sx;
@@ -593,6 +595,36 @@
 
       screen.drawImage(seatedBg, 0, 0);
       screen.drawImage(strip.c, 0, ST.y, W, ST.h);
+    }
+
+    // 나와 전광판 사이에 있는 사람(앞줄에 앉았거나 앞쪽에 서 있는 사람)을 내 줄과 같은 높이·크기로 그린다.
+    // 원근 없이 머리 위치를 내 줄에 앉은 사람과 맞추므로, 내 줄 사람이 앉은 자리에서는 가려진다.
+    function drawFront(sg, seat, sx, sw) {
+      const list = [];
+      for (const p of [shopkeeper, ...remotes.values()]) {
+        if (!inFrontOf(seat, p)) continue;
+        const x = Math.round(worldX(p) - sx);
+        if (x < -8 || x > sw + 8) continue;
+        list.push({ p, x, key: p.seat ? p.seat.y + CHAIR_H : p.y });
+      }
+      // 먼 사람부터 그려 가까운 사람이 위에 오게 한다
+      list.sort((a, b) => a.key - b.key);
+      for (const { p, x } of list) {
+        // 띠 안에서 머리 꼭대기가 2번째 줄에 오게 맞춘다(내 줄에 앉은 머리와 같은 높이)
+        if (p.seat) drawSeated(sg, x - CHAIR_W / 2, 8, p.look, 0);
+        else drawPerson(sg, x, 19, p.look, p.dir, p.frame);
+      }
+    }
+
+    function inFrontOf(seat, p) {
+      if (p === player) return false;
+      if (p.seat) return p.seat.y < seat.y;
+      // 내 줄 등받이 바로 앞 틈까지가 '앞'. 내 뒤(관람자 쪽)에 선 사람은 보이지 않는다.
+      return p.y <= seat.y + 4;
+    }
+
+    function worldX(p) {
+      return p.seat ? p.seat.x + CHAIR_W / 2 : p.x;
     }
 
     // 안내 문구용 현재 상태: 'seated' | 'talk' | 'near' | 'free'
@@ -606,13 +638,14 @@
     //   who: 'me', 'shop'(상점 주인) 또는 접속자 id
     let stripSx = 0;
     function anchor(who) {
-      if (who === 'shop') return player.seat ? null : { x: shopkeeper.x, y: shopkeeper.y - 19 };
-      const p = who === 'me' ? (player.active ? player : null) : remotes.get(who);
+      const p = who === 'shop' ? shopkeeper
+        : who === 'me' ? (player.active ? player : null)
+        : remotes.get(who);
       if (!p) return null;
       if (player.seat) {
-        // 착석 화면에는 내 줄 띠만 보이므로, 같은 줄에 앉은 사람만 띠 위에 표시한다
-        if (!p.seat || p.seat.y !== player.seat.y) return null;
-        const x = (p.seat.x + CHAIR_W / 2 - stripSx) * ST.zoom;
+        // 착석 화면 아래 띠에는 내 줄 사람과 내 앞사람이 같은 높이로 보인다
+        if (!inFrontOf(player.seat, p) && (!p.seat || p.seat.y !== player.seat.y)) return null;
+        const x = (worldX(p) - stripSx) * ST.zoom;
         if (x < 0 || x > W) return null;
         return { x, y: ST.y - 1 };
       }
