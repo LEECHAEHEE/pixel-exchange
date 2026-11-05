@@ -401,37 +401,55 @@
     }
   }
 
-  // 흰 강아지(옆모습). (x, y) 는 발끝 가운데, dir 은 'left' | 'right'.
-  // frame 은 걷기 동작(0~3), wag 는 꼬리 흔들기(0/1).
-  const DOG = { body: '#f7f6f1', shade: '#d9d6cc', ear: '#e6e1d4', nose: '#2a1d18', tongue: '#e8707a' };
-  function drawDog(g, x, y, dir, frame, wag) {
-    const s = dir === 'left' ? -1 : 1;
-    // 오른쪽을 보는 그림 기준 좌표를 방향에 맞춰 뒤집는다
-    const r = (dx, dy, w, h, c) => rect(g, s > 0 ? x + dx : x - dx - w, y + dy, w, h, c);
+  // 흰 포메라니안(옆모습, 오른쪽을 보는 그림). 등 위로 말린 복슬 꼬리, 짧은 다리.
+  //   o 외곽선  w 털  s 배 그늘  n 눈·코  t/T 꼬리 외곽선/털(흔들 때 좌우로 한 칸씩)
+  // 다리는 걷기 동작에 따라 따로 그린다.
+  const DOG_ROWS = [
+    '                    ',
+    '    ttt     o o     ',
+    '   tTTTt   owowo    ',
+    '   owwwwoooowwwwo   ',
+    '    owwwwwwwwwwnwo  ',
+    '   owwwwwwwwwwwwwno ',
+    '   owwwwwwwwwwwwwo  ',
+    '   owwwwwwwwwwwwo   ',
+    '    osssssssssso    '
+  ];
+  const DOG_COL = { o: PAL.outline, t: PAL.outline, w: '#f7f6f1', T: '#f7f6f1', s: '#d9d6cc', n: '#2a1d18' };
+  const DOG_LEGS = [5, 12];       // 뒷다리·앞다리 왼쪽 칸
+  const DOG_CX = 10;              // 그림에서 발끝 가운데가 되는 칸
 
-    rect(g, x - 5, y, 10, 1, 'rgba(0,0,0,0.18)');
-    // 다리: 걸을 때 앞뒤 다리가 번갈아 한 칸씩 들린다
-    const lift = frame === 1 || frame === 3;
-    for (const [dx, up] of [[-4, lift], [-2, !lift], [1, !lift], [3, lift]]) {
-      r(dx - 1, -3, 3, up ? 2 : 3, PAL.outline);
-      r(dx, -3, 1, up ? 1 : 2, DOG.shade);
-    }
-    // 몸통·머리·꼬리 외곽선
-    r(-6, -7, 11, 5, PAL.outline);
-    r(2, -10, 6, 6, PAL.outline);
-    r(-8, -9 + wag, 3, 3, PAL.outline);
-    // 몸통
-    r(-5, -6, 9, 3, DOG.body);
-    r(-5, -4, 9, 1, DOG.shade);
-    // 머리
-    r(3, -9, 4, 4, DOG.body);
-    r(3, -10, 2, 2, DOG.ear);
-    r(3, -9, 1, 2, DOG.shade);
-    r(5, -8, 1, 1, PAL.outline);
-    r(7, -7, 1, 1, DOG.nose);
-    if (frame) r(6, -5, 1, 1, DOG.tongue);
-    // 꼬리
-    r(-7, -8 + wag, 1, 1, DOG.body);
+  // (x, y) 는 발끝 가운데, dir 은 'left' | 'right'. frame 은 걷기 동작(0 정지, 1·2 번갈아 다리 들기),
+  // wag 는 꼬리 흔들기(0/1).
+  function drawDog(g, x, y, dir, frame, wag) {
+    const flip = dir === 'left';
+    // 그림 칸 (col, row) 을 화면 좌표로. 왼쪽을 보면 좌우를 뒤집는다.
+    const px = (col) => flip ? x + (DOG_CX - 1 - col) : x - DOG_CX + col;
+    const top = y - 11;
+    const dot = (col, row, c) => rect(g, px(col), top + row, 1, 1, c);
+
+    rect(g, x - 6, y, 12, 1, 'rgba(0,0,0,0.18)');
+    DOG_ROWS.forEach((row, ry) => {
+      for (let cx = 0; cx < row.length; cx++) {
+        const ch = row[cx];
+        const c = DOG_COL[ch];
+        if (!c) continue;
+        // 꼬리는 흔들 때 몸 바깥쪽(뒤쪽)으로 한 칸 밀린다
+        dot(ch === 't' || ch === 'T' ? cx - wag : cx, ry, c);
+      }
+    });
+    // 다리: 정지면 둘 다 디디고, 걸을 때는 frame 에 따라 앞·뒤 다리가 번갈아 들린다
+    DOG_LEGS.forEach((lx, i) => {
+      const lifted = (frame === 1 && i === 1) || (frame === 2 && i === 0);
+      if (lifted) {
+        for (let k = 0; k < 3; k++) dot(lx + k, 9, PAL.outline);
+      } else {
+        dot(lx, 9, PAL.outline); dot(lx + 1, 9, '#d9d6cc'); dot(lx + 2, 9, PAL.outline);
+        for (let k = 0; k < 3; k++) dot(lx + k, 10, PAL.outline);
+      }
+    });
+    // 걸을 때는 혀가 살짝 보인다
+    if (frame) dot(16, 6, '#e8707a');
   }
 
   // 의자에 앉은 뒷모습: 머리만 등받이 위로 보인다
@@ -1003,7 +1021,7 @@
   }
 
   // 인벤토리 미리보기가 같은 그림을 쓰도록 내보낸다
-  PX.sprites = { drawPerson };
+  PX.sprites = { drawPerson, drawDog };
 
   PX.createScene = createScene;
 })();
