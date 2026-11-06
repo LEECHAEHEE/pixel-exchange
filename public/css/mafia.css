@@ -95,10 +95,10 @@
 
 /* ---------- 마피아존 로그: 진행(우측) / 대화(좌측) ---------- */
 /* 입력 바(무대 아래 중앙)를 가리지 않도록 좌·우 측면에 세로로 둔다 */
-/* 하단 입력 바를 덮지 않도록 높이 기반(하단까지 내려오지 않음) */
-.mz-log-panel { position: absolute; display: flex; flex-direction: column; width: min(260px, 27vw); height: min(330px, 46vh); pointer-events: auto; }
-.mz-chat-panel { left: 8px; top: 52px; }        /* 대화 — 왼쪽 */
-.mz-game-panel { right: 8px; top: 150px; }      /* 사회자 진행 — 오른쪽 빈 공간(현황판 아래) */
+/* 플레이어 채팅은 기존 객장 채팅(좌측 하단 입력 + M 기록)을 그대로 쓴다.
+   '게임 진행'(사회자) 패널만 우측 하단에 둬서 채팅과 수평으로 보이게 한다. */
+.mz-log-panel { position: absolute; display: flex; flex-direction: column; width: min(280px, 30vw); height: min(300px, 42vh); pointer-events: auto; }
+.mz-game-panel { right: 10px; bottom: 14px; }   /* 게임 진행 — 오른쪽 하단(채팅과 수평) */
 .mz-log-panel > header {
   padding: 3px 8px; font-size: 12px; color: var(--mz-gold);
   background: #241a12; border: 2px solid var(--mz-line); border-bottom: 0;
@@ -120,8 +120,7 @@
 .bubble.mz-host-bubble { border-color: var(--mz-gold); }
 
 @media (max-width: 640px) {
-  .mz-log-panel { width: 42vw; height: 38vh; }
-  .mz-chat-panel { top: 46px; }
-  .mz-game-panel { top: 120px; }
+  .mz-log-panel { width: 46vw; height: 34vh; }
+  .mz-game-panel { right: 8px; bottom: 10px; }
   .mz-log { font-size: 11px; }
 }

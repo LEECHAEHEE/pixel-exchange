@@ -25,8 +25,7 @@
         <span id="mz-progress"></span>
       </div>
       <aside id="mz-roster"></aside>
-      <section class="mz-log-panel mz-game-panel"><header>📢 게임 진행 (사회자)</header><div id="mz-gamelog" class="mz-log"></div></section>
-      <section class="mz-log-panel mz-chat-panel"><header>💬 대화</header><div id="mz-chatlog" class="mz-log"></div></section>
+      <section class="mz-log-panel mz-game-panel"><header>📢 게임 진행</header><div id="mz-gamelog" class="mz-log"></div></section>
       <button type="button" id="mz-start" hidden>START</button>
       <button type="button" id="mz-skip" hidden>건너뛰기 ▶</button>
       <div id="mz-dialog" class="mz-dialog" hidden>
@@ -39,7 +38,7 @@
     const rosterEl = $('#mz-roster'), startBtn = $('#mz-start'), skipBtn = $('#mz-skip');
     const dialog = $('#mz-dialog'), dlgName = dialog.querySelector('.mz-dlg-name'), dlgText = dialog.querySelector('.mz-dlg-text'), dlgOpts = dialog.querySelector('.mz-dlg-opts');
     const modal = $('#mz-modal');
-    const gameLogEl = $('#mz-gamelog'), chatLogEl = $('#mz-chatlog');
+    const gameLogEl = $('#mz-gamelog');
 
     // 진행창(사회자/시스템) — 사회자는 말풍선으로도 말한다
     function gameInfo(text) {
@@ -55,14 +54,10 @@
       gameLogEl.scrollTop = gameLogEl.scrollHeight;
       chat.say('mzhost', text); // 사회자 NPC 머리 위 말풍선
     }
-    // 대화창(플레이어) — 말풍선도 함께
+    // 플레이어 채팅은 기존 객장 채팅(말풍선 + M 키 기록)을 그대로 쓴다.
     function addChat(name, text, channel, id) {
-      const d = document.createElement('div'); d.className = 'mz-logline mz-ch-' + (channel || 'public');
-      const n = document.createElement('span'); n.className = 'mz-logname'; n.textContent = name;
-      d.append(n, document.createTextNode(' ' + text));
-      chatLogEl.appendChild(d); while (chatLogEl.childElementCount > 120) chatLogEl.firstChild.remove();
-      chatLogEl.scrollTop = chatLogEl.scrollHeight;
-      if (id) chat.say(whoOf(id), text); // 말하는 사람 머리 위 말풍선
+      if (id) chat.say(whoOf(id), text);       // 머리 위 말풍선
+      chat.addLog(name, text);                 // M 키로 보는 기존 채팅 기록
     }
 
     // ---------- 상태 ----------
