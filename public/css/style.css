@@ -55,19 +55,106 @@ body {
 }
 
 /* 위치는 화면 배율(--ps), 전광판 안쪽 크기는 글자 배율을 곱한 --s 를 쓴다 */
-.sign, .board, .label, .race-panel {
+/* --dx 는 옆 장소로 화면이 밀리는 동안 함께 밀리는 양(논리 px, main.js showMap) */
+.sign, .board, .label, .race-panel, .coin-board, .coin-hint {
   position: absolute;
   left: calc(var(--x) * var(--ps) * 1px);
   top: calc(var(--y) * var(--ps) * 1px);
   width: calc(var(--w) * var(--ps) * 1px);
   height: calc(var(--h) * var(--ps) * 1px);
+  translate: calc(var(--dx, 0) * var(--ps) * 1px) 0;
 }
 
 .stage.seated .sign { display: none; }
 
-/* 객장 밖에서는 간판·전광판을 감춘다. 크기는 유지해야 창 크기를 바꿔도 칸 수 계산이 맞다. */
-.stage:not([data-map='exchange']) .sign,
-.stage:not([data-map='exchange']) .board { visibility: hidden; }
+/* 객장 밖에서는 간판·전광판을 감춘다(옆 장소로 밀리는 중이면 보인다). 크기는 유지해야 창 크기를 바꿔도 칸 수 계산이 맞다. */
+.stage:not([data-map='exchange']):not([data-slide~='exchange']) .sign,
+.stage:not([data-map='exchange']):not([data-slide~='exchange']) .board { visibility: hidden; }
+/* 밀리는 동안 화면 밖으로 나간 부분은 무대 밖에 그려지지 않게 */
+.stage[data-slide] { overflow: hidden; }
+
+/* ---------- 코인 전광판 ---------- */
+
+.coin-board {
+  display: none;
+  grid-template-rows: 1fr calc(var(--ps) * 7px);
+  background: var(--board-bg);
+  overflow: hidden;
+  contain: strict;
+  font-size: calc(var(--ps) * 4px);
+  line-height: 1.15;
+}
+.stage[data-map='coin'] .coin-board,
+.stage[data-slide~='coin'] .coin-board { display: grid; }
+.coin-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-auto-rows: 1fr;
+  gap: calc(var(--ps) * 0.5px);
+  padding: calc(var(--ps) * 1px);
+}
+.coin-cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 calc(var(--ps) * 1.5px);
+  background: #10141c;
+  border: calc(var(--ps) * 0.25px) solid #1f2735;
+}
+.coin-cell b { font-weight: normal; color: #ffd76a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.coin-cell span { color: #8a93a6; text-align: right; }
+.coin-foot {
+  display: flex;
+  align-items: center;
+  padding: 0 calc(var(--ps) * 2px);
+  color: #8a93a6;
+  border-top: calc(var(--ps) * 0.5px) solid #1f2735;
+}
+/* 객장 오른쪽 끝의 '코인 →' 안내: 동전은 가로로 줄었다 늘며 도는 것처럼, 안내 전체는 위아래로 둥둥 */
+.coin-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--ps) * 1.5px);
+  color: #ffd76a;
+  font-size: calc(var(--ps) * 4.5px);
+  white-space: nowrap;
+  text-shadow: calc(var(--ps) * 0.5px) calc(var(--ps) * 0.5px) 0 #2a1d18;
+  pointer-events: none;
+  animation: coin-bob 1.6s ease-in-out infinite;
+}
+.coin-hint[hidden], .stage.seated .coin-hint { display: none; }
+.coin-hint canvas {
+  width: calc(var(--ps) * 9px);
+  height: calc(var(--ps) * 9px);
+  image-rendering: pixelated;
+  animation: coin-spin 1s steps(8) infinite;
+}
+@keyframes coin-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(calc(var(--ps) * -2px)); }
+}
+/* 동전이 옆으로 누웠다가 뒤집혀 돌아오는 모습. 뒷면일 때는 조금 어둡게. */
+@keyframes coin-spin {
+  0% { transform: scaleX(1); filter: none; }
+  25% { transform: scaleX(0.15); filter: none; }
+  26% { transform: scaleX(-0.15); filter: brightness(0.75); }
+  50% { transform: scaleX(-1); filter: brightness(0.75); }
+  75% { transform: scaleX(-0.15); filter: brightness(0.75); }
+  76% { transform: scaleX(0.15); filter: none; }
+  100% { transform: scaleX(1); filter: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .coin-hint, .coin-hint canvas { animation: none; }
+}
+
+.label.coin-sign {
+  color: var(--gold);
+  background: none;
+  font-size: calc(var(--ps) * 6px);
+  letter-spacing: calc(var(--ps) * 0.6px);
+  text-shadow: calc(var(--ps) * 0.5px) calc(var(--ps) * 0.5px) 0 #0d2a1c;
+}
 
 /* ---------- 경마장 전광판 ---------- */
 

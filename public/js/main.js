@@ -102,11 +102,69 @@
     stage.insertBefore(el, boardEl);
     return el;
   });
+  // 코인 거래소 전광판. 아직 시세를 받지 않아 코인 이름과 빈 값만 있다.
+  const coinBoardEl = document.createElement('section');
+  coinBoardEl.className = 'coin-board';
+  coinBoardEl.setAttribute('aria-label', '코인 전광판');
+  coinBoardEl.innerHTML = '<div class="coin-grid"></div><div class="coin-foot"></div>';
+  for (const [sym, name] of C.coins) {
+    const cell = document.createElement('div');
+    cell.className = 'coin-cell';
+    cell.innerHTML = '<b></b><span>—</span>';
+    cell.children[0].textContent = `${name} ${sym}`;
+    coinBoardEl.firstChild.appendChild(cell);
+  }
+  coinBoardEl.lastChild.textContent = '코인 시세 준비 중';
+  place(coinBoardEl, C.board);
+  stage.insertBefore(coinBoardEl, boardEl);
+
+  // 객장 오른쪽 끝에 다가가면 뜨는 '코인 →' 안내. 도트 동전이 빙글빙글 돌고 안내 전체가 둥둥 뜬다.
+  const coinHintEl = document.createElement('div');
+  coinHintEl.className = 'coin-hint';
+  coinHintEl.hidden = true;
+  coinHintEl.innerHTML = '<canvas width="9" height="9"></canvas><span>코인 →</span>';
+  {
+    // 9x9 금화: 테두리·안쪽 테 · 가운데 무늬 · 왼쪽 위 반짝임
+    const cg = coinHintEl.firstChild.getContext('2d');
+    const dot = (x, y, w, h, c) => { cg.fillStyle = c; cg.fillRect(x, y, w, h); };
+    dot(2, 0, 5, 9, '#7a5410'); dot(0, 2, 9, 5, '#7a5410'); dot(1, 1, 7, 7, '#7a5410');
+    dot(2, 1, 5, 7, '#f3c53a'); dot(1, 2, 7, 5, '#f3c53a');
+    dot(3, 2, 3, 5, '#d89a1e'); dot(2, 3, 5, 3, '#d89a1e');
+    dot(4, 3, 1, 3, '#fff1a8');
+    dot(2, 2, 1, 1, '#fff8d0');
+  }
+  place(coinHintEl, C.coinHint);
+  stage.insertBefore(coinHintEl, boardEl);
+
+  // 장소에 딸린 DOM 오버레이. 장소를 옮기며 화면이 밀릴 때 같은 양만큼 함께 민다.
+  const mapEls = [
+    { el: boardEl, map: 'exchange' },
+    { el: document.querySelector('.sign'), map: 'exchange' },
+    { el: coinHintEl, map: 'exchange' },
+    { el: coinBoardEl, map: 'coin' },
+    ...labelEls.map(el => ({ el, map: el.dataset.map }))
+  ];
+
   let shownMap = '';
+  let sliding = false;
   function showMap(map) {
-    if (map === shownMap) return;
+    const sl = scene.slide;
+    if (map === shownMap && !sl && !sliding) return;
     shownMap = map;
     stage.dataset.map = map;
+    if (sl) {
+      // 떠난 장소와 새 장소의 오버레이를 함께 보이고 화면과 같이 민다
+      stage.dataset.slide = sl.from + ' ' + sl.to;
+      for (const { el, map: m } of mapEls) {
+        el.style.setProperty('--dx', m === sl.from ? sl.dxFrom : m === sl.to ? sl.dxTo : 0);
+        if (el.classList.contains('label')) el.hidden = m !== sl.from && m !== sl.to;
+      }
+      sliding = true;
+      return;
+    }
+    sliding = false;
+    delete stage.dataset.slide;
+    for (const { el } of mapEls) el.style.removeProperty('--dx');
     for (const el of labelEls) el.hidden = el.dataset.map !== map;
   }
 
@@ -182,6 +240,7 @@
     talk: 'Space 로 상점 주인에게 말 걸기',
     seated: 'Space 또는 ↓ ← → 로 일어나기',
     'crossroad:free': '↑ 객장 · ↓ 경마장 · ← 풋살장 · → 마피아존 · [Esc] 조작 방법',
+    'coin:free': '← 객장 · [Esc] 조작 방법',
     // 풋살장은 팀·공 상태로 고른다(futsal.prompt)
     'futsal:lobby': '팀을 골라 참가하세요 · 풋살장에서는 방향키로만 이동 · [Esc] 조작 방법',
     'futsal:team': 'START 로 경기 시작 · 경기 중 방향키 이동, S 패스, D 슛',
@@ -214,6 +273,10 @@
     race.update();
 
     showMap(scene.map);
+    // 객장에서 오른쪽 끝에 다가갔을 때만(앉아 있지 않을 때) '코인 →' 안내를 띄운다. 밀리는 중에는 떠 있던 그대로 같이 밀린다.
+    const nearCoin = scene.slide ? !coinHintEl.hidden
+      : scene.map === 'exchange' && !scene.seatedView && scene.player.active && scene.player.x > C.coinHint.nearX;
+    if (coinHintEl.hidden === nearCoin) coinHintEl.hidden = !nearCoin;
     mafia.setMap(scene.map);
     const state = scene.map === 'exchange' ? scene.prompt()
       : scene.map === 'futsal' ? 'futsal:' + futsal.prompt()

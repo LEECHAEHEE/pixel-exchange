@@ -91,11 +91,25 @@
 
   // 장소 하나의 모양. 발 위치가 walk 사각형 중 하나 안에 있어야 서 있을 수 있고,
   // blocks 와 겹치면 막히며, exits 안에 들어서면 to 장소의 spawn 으로 옮겨 간다.
+  // 출구에 slide 가 있으면 어두워지는 대신 옛 게임처럼 화면이 그쪽으로 밀리며 옆 장소로 넘어간다.
+  // spawn.y 가 없으면 들어온 높이 그대로 옆 장소 가장자리에서 시작한다.
+  // 객장 오른쪽 끝(상점 주인 아래쪽)은 코인 거래소로 이어진다.
   const EXCHANGE = {
     walk: [{ x: 4, y: 120, w: W - 8, h: H - 121 }],
     blocks: BLOCKS,
-    exits: [{ x: CARPET_X, y: H - 2, w: CARPET_W, h: 2, to: 'crossroad', spawn: { x: 160, y: 26, dir: 'down' } }],
+    exits: [
+      { x: CARPET_X, y: H - 2, w: CARPET_W, h: 2, to: 'crossroad', spawn: { x: 160, y: 26, dir: 'down' } },
+      { x: W - 5, y: SHOPKEEPER.y + 2, w: 5, h: H - SHOPKEEPER.y - 2, to: 'coin', spawn: { x: 8, dir: 'right' }, slide: 'right' }
+    ],
     aisle: AISLE_X,
+    floorY: FLOOR_Y
+  };
+
+  // 코인 거래소: 객장과 같은 방에 코인 전광판(DOM)만 있다. 왼쪽 끝으로 나가면 객장으로 돌아간다.
+  const COIN = {
+    walk: [{ x: 2, y: 120, w: W - 6, h: H - 121 }],
+    blocks: [],
+    exits: [{ x: 0, y: 120, w: 3, h: H - 120, to: 'exchange', spawn: { x: W - 10, dir: 'left' }, slide: 'left' }],
     floorY: FLOOR_Y
   };
 
@@ -133,7 +147,8 @@
     return c;
   }
 
-  function paintBackground() {
+  // coin 이면 객장 오른쪽 코인 거래소: 벽·간판·전광판 틀·바닥은 같고 카펫·화분이 없다
+  function paintBackground(coin) {
     const { c, g } = makeCanvas(W, H);
     const r = rng(7);
 
@@ -168,7 +183,7 @@
       }
     }
     rect(g, 0, FLOOR_Y, W, 2, PAL.floorShade);
-
+    if (coin) return c;
 
     // 가운데 통로 카펫
     rect(g, 148, 120, 24, H - 120, PAL.carpetEdge);
@@ -781,7 +796,10 @@
     const chairImg = paintChair();
 
     // 장소마다 배경은 처음 한 번만 그린다
-    const areas = { exchange: Object.assign({ bg }, EXCHANGE) };
+    const areas = {
+      exchange: Object.assign({ bg }, EXCHANGE),
+      coin: Object.assign({ bg: paintBackground(true) }, COIN)
+    };
     for (const [id, place] of Object.entries(PX.places || {})) {
       areas[id] = Object.assign({ bg: place.paint() }, place);
     }
@@ -847,14 +865,32 @@
     const FADE_S = 0.3;
     let fade = 0;
 
-    function enter(id, spawn) {
+    // 옆 장소로 밀리며 넘어가는 중. 떠난 장소의 마지막 화면(old)을 밀어내고 새 장소 화면을 밀어 넣는다.
+    // 넘어가는 동안 캐릭터는 움직이지 않는다.
+    const SLIDE_MS = 700;
+    let slide = null;
+    const slideOld = makeCanvas(W, H);
+
+    function slideOffset(now) {
+      const t = Math.min(1, (now - slide.start) / SLIDE_MS);
+      return Math.round(W * (t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t)));
+    }
+
+    function enter(id, spawn, dir) {
+      if (dir) {
+        slideOld.g.clearRect(0, 0, W, H);
+        slideOld.g.drawImage(canvas, 0, 0, W, H);
+        slide = { from: player.map, to: id, dir, start: performance.now() };
+        keys.clear();
+      } else {
+        fade = FADE_S;
+      }
       area = areas[id];
       player.map = id;
       player.x = spawn.x;
-      player.y = spawn.y;
+      if (spawn.y != null) player.y = spawn.y;
       player.dir = spawn.dir;
       player.route = null;
-      fade = FADE_S;
       // 강아지 소식은 강아지가 있는 장소에서만 받는다. 새 장소의 sync·dog 로 실제 자리에 바로 놓이게 꺼 둔다.
       dog.active = false;
       keeper.active = false;
@@ -1015,7 +1051,7 @@
 
     function updatePlayer(dt) {
       player.moving = false;
-      if (!player.active || player.seat) return;
+      if (!player.active || player.seat || slide) return;
       // 넘어져 있는 동안은 방향키를 눌러도 일어날 때까지 그대로 누워 있다
       if (isDown(player)) { animate(player, false, dt); return; }
       let dx = 0, dy = 0;
@@ -1060,7 +1096,7 @@
 
     function checkExit() {
       const exit = area.exits.find(e => inside(e, player.x, player.y));
-      if (exit) enter(exit.to, exit.spawn);
+      if (exit) enter(exit.to, exit.spawn, exit.slide);
     }
 
     // 서버 위치는 0.1초 간격이라, 그 사이를 걷는 속도로 채워 끊겨 보이지 않게 한다.
@@ -1163,7 +1199,14 @@
         fxUsed = false;
       }
       if (player.seat) composeSeated(player.seat);
-      else screen.drawImage(world, 0, 0);
+      else if (slide) {
+        // 오른쪽으로 갈 때는 옛 화면이 왼쪽으로 밀려 나가고 새 화면이 오른쪽에서 들어온다(왼쪽은 반대)
+        const off = slideOffset(performance.now());
+        const s = slide.dir === 'right' ? 1 : -1;
+        screen.drawImage(slideOld.c, -s * off, 0);
+        screen.drawImage(world, s * (W - off), 0);
+        if (off >= W) slide = null;
+      } else screen.drawImage(world, 0, 0);
       if (fade > 0) {
         screen.fillStyle = `rgba(0,0,0,${(fade / FADE_S).toFixed(2)})`;
         screen.fillRect(0, 0, W, H);
@@ -1264,6 +1307,8 @@
     //   who: 'me', 'shop'(상점 주인) 또는 접속자 id
     let stripSx = 0;
     function anchor(who) {
+      // 화면이 밀리는 동안은 말풍선·닉네임표를 숨긴다(두 장소가 함께 보여 자리가 맞지 않는다)
+      if (slide) return null;
       // 강아지는 키가 작아 앉은 화면 띠에는 그리지 않는다
       if (who === 'dog') return dogHere() && !player.seat ? { x: dog.x, y: dog.y - 12 } : null;
       if (who === 'keeper') return keeperHere() ? { x: keeper.x, y: keeper.y - HEAD_TOP } : null;
@@ -1596,7 +1641,15 @@
       update, render, prompt, anchor, releaseKeys, setLocked, setMyEquip, playEmote, teleport, where, hoof, player, hooks, net,
       shopkeeperName: shopkeeper.name,
       get map() { return player.map; },
-      get seatedView() { return !!player.seat; }
+      get seatedView() { return !!player.seat; },
+      // 밀리는 중이면 { from, to, dxFrom, dxTo }: 떠난 장소·새 장소 화면이 가로로 밀린 양(논리 px).
+      // main.js 가 전광판 같은 DOM 오버레이를 같은 양만큼 옮긴다.
+      get slide() {
+        if (!slide) return null;
+        const off = Math.min(W, slideOffset(performance.now()));
+        const s = slide.dir === 'right' ? 1 : -1;
+        return { from: slide.from, to: slide.to, dxFrom: -s * off, dxTo: s * (W - off) };
+      }
     };
   }
 
