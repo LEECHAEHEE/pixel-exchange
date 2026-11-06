@@ -28,21 +28,15 @@ const SHIRTS = [
   ['#c8424a', '#9b2c35'], ['#2f8a8a', '#226767'], ['#e08a2e', '#b56d20'], ['#5a5a66', '#43434d']
 ];
 const PANTS = ['#3a3a48', '#4a4a55', '#5a4a3a', '#2c3e5c', '#3d4a3a'];
-const CAPS = [['#d83a3a', '#a82626'], ['#2f5fd8', '#2346a8'], ['#2f9a4a', '#22733a'], ['#e0b030', '#b08a20']];
 
 function pick(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+// 서버가 정하는 건 머리 색과 기본 옷뿐이다. 머리 모양·모자·신발은 화면이 첫 접속 때 준 기본 아이템이라 벗을 수 있다.
 function randomLook() {
   const [shirt, shirtLo] = pick(SHIRTS);
-  const look = { hair: pick(HAIRS), shirt, shirtLo, pants: pick(PANTS) };
-  if (Math.random() < 0.5) {
-    const [cap, capLo] = pick(CAPS);
-    look.cap = cap;
-    look.capLo = capLo;
-  }
-  return look;
+  return { hair: pick(HAIRS), shirt, shirtLo, pants: pick(PANTS) };
 }
 
 // 제어문자를 빼고 공백을 하나로 줄인다. 화면에는 textContent 로만 넣으므로 HTML 이스케이프는 필요 없다.

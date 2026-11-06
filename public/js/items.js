@@ -4,9 +4,11 @@
 //   PX.items.drawIcon(item)          16x16 도트 아이콘 canvas
 //   PX.items.applyEquip(look, ids)   기본 외형에 착용 아이템을 덮어쓴 외형
 //   PX.items.equipToggle(ids, id)    착용/해제 후의 착용 목록(같은 부위·겹치는 부위는 벗긴다)
+//   PX.items.starterItems()          처음 접속한 사람에게 주는 기본 착장(머리·신발, 절반은 모자)
 (function () {
 
   const CATEGORIES = [
+    { id: 'hair', name: '헤어' },
     { id: 'hat', name: '모자' },
     { id: 'top', name: '상의' },
     { id: 'bottom', name: '하의' },
@@ -17,6 +19,7 @@
 
   // 착용 부위. 한벌옷은 상의·하의 자리를 함께 차지한다.
   const SLOTS = [
+    { id: 'hair', name: '헤어' },
     { id: 'hat', name: '모자' },
     { id: 'top', name: '상의' },
     { id: 'bottom', name: '하의' },
@@ -35,6 +38,9 @@
 
   // 부위별 아이템 한 줄씩. wear 는 캐릭터 그림(scene.js drawPerson)이 읽는 외형 값,
   // icon/opt 은 아이콘 모양과 변형. 나중에 서버가 목록·가격을 정하면 이 배열을 서버에서 받아 오면 된다.
+  // 헤어는 모양(hairs.js)만 바꾸고 머리 색은 사람마다 정해진 색을 그대로 쓴다. 아이콘은 갈색으로 그린다.
+  const hair = (style, price, desc) =>
+    ({ id: 'hair-' + style, cat: 'hair', slot: 'hair', name: PX.hairs.list.find(s => s.id === style).name, price, desc, icon: 'hair', color: '#6b4428', opt: { style }, wear: { hairStyle: style } });
   const hat = (id, name, price, desc, color, wear, opt) =>
     ({ id, cat: 'hat', slot: 'hat', name, price, desc, icon: opt && opt.icon || 'cap', color, opt: opt || {}, wear });
   const top = (id, name, price, desc, color, wear, opt) =>
@@ -51,9 +57,29 @@
     ({ id, cat: 'accessory', slot: 'ring', kind: '반지', name, price, desc, icon: 'ring', color: metal, opt: { gem }, wear: { ring: gem || metal } });
 
   const ITEMS = [
+    // 헤어
+    hair('basic', 100, '단정한 기본 짧은머리'),
+    hair('buzz', 100, '짧게 친 스포츠머리'),
+    hair('part', 300, '볼륨 살린 가르마'),
+    hair('spiky', 500, '하늘로 솟은 뾰족머리'),
+    hair('mohawk', 1000, '가운데만 세운 모히칸'),
+    hair('bald', 500, '옆머리만 남은 객장 고수'),
+    hair('perm', 500, '동글동글 뽀글 파마'),
+    hair('pixie', 300, '앞머리 내린 숏컷'),
+    hair('bob', 300, '턱선까지 오는 단발'),
+    hair('long', 500, '어깨 아래로 내려오는 생머리'),
+    hair('wave', 800, '물결치는 긴 머리'),
+    hair('pony', 500, '높이 묶은 포니테일'),
+    hair('twin', 800, '양쪽으로 묶은 양갈래'),
+    hair('bun', 500, '정수리에 올린 똥머리'),
+    hair('braid', 800, '한쪽으로 늘어뜨린 땋은머리'),
+
     // 모자. 왕관은 모자 대신 쓰는 것이라 기본 외형의 모자를 지운다(cap: null).
     hat('hat-basic', '기본 모자', 100, '챙이 달린 기본 캡', '#c8424a', { cap: '#c8424a', capLo: '#9b2c35' }),
     hat('hat-navy', '남색 모자', 100, '차분한 남색 캡', '#2c3e5c', { cap: '#2c3e5c', capLo: '#1f2c42' }),
+    hat('hat-blue', '파란 모자', 100, '시원한 파란 캡', '#2f5fd8', { cap: '#2f5fd8', capLo: '#2346a8' }),
+    hat('hat-green', '초록 모자', 100, '산뜻한 초록 캡', '#2f9a4a', { cap: '#2f9a4a', capLo: '#22733a' }),
+    hat('hat-yellow', '노란 모자', 100, '눈에 띄는 노란 캡', '#e0b030', { cap: '#e0b030', capLo: '#b08a20' }),
     hat('hat-up', '상승 빨간 모자', 300, '▲ 무늬가 박힌 빨간 캡', '#d83a3a', { cap: '#d83a3a', capLo: '#a82626', capMark: 'up' }, { mark: 'up' }),
     hat('hat-down', '하락 파란 모자', 300, '▼ 무늬가 박힌 파란 캡', '#2f5fd8', { cap: '#2f5fd8', capLo: '#2346a8', capMark: 'down' }, { mark: 'down' }),
     hat('hat-bull', '황소 뿔 모자', 1000, '상승장을 부르는 뿔', '#6b3f22', { cap: '#6b3f22', capLo: '#4b2c18', horns: '#f4ead8' }, { horns: '#f4ead8' }),
@@ -120,6 +146,11 @@
   }
 
   const ICONS = {
+    // 얼굴에 그 헤어스타일 앞모습을 그린다. 격자 0~14행이 아이콘 1~15줄에 들어간다.
+    hair(r, c, o, g) {
+      r(4, 4, 8, 7, SKIN);
+      PX.hairs.draw(g, 8, 4, o.style, 'down', c, false);
+    },
     cap(r, c, o) {
       r(4, 5, 8, 2, c); r(3, 7, 10, 3, c);
       r(3, 9, 12, 1, shade(c, 0.7)); r(10, 10, 5, 1, shade(c, 0.7));
@@ -210,7 +241,7 @@
     cv.height = 16;
     cv.className = 'item-icon';
     const g = cv.getContext('2d');
-    ICONS[item.icon]((x, y, w, h, col) => { g.fillStyle = col; g.fillRect(x, y, w, h); }, item.color, item.opt || {});
+    ICONS[item.icon]((x, y, w, h, col) => { g.fillStyle = col; g.fillRect(x, y, w, h); }, item.color, item.opt || {}, g);
 
     const img = g.getImageData(0, 0, 16, 16);
     const a = (x, y) => (x < 0 || y < 0 || x > 15 || y > 15) ? 0 : img.data[(y * 16 + x) * 4 + 3];
@@ -230,14 +261,25 @@
 
   // ---------- 착용 ----------
 
+  // 아무것도 안 썼을 때: 민머리·맨발. 기본 머리·신발·모자도 아이템이라 벗으면 이렇게 보인다.
+  const BARE = { hairStyle: 'none', shoes: SKIN };
+
   // 모르는 id(다른 버전 화면이 보낸 값 등)는 조용히 무시한다
   function applyEquip(look, ids) {
-    const out = Object.assign({}, look);
+    const out = Object.assign({}, BARE, look);
     for (const id of ids || []) {
       const item = BY_ID.get(id);
       if (item) Object.assign(out, item.wear);
     }
     return out;
+  }
+
+  // 처음 접속한 사람에게 주는 기본 착장. 절반은 모자를 쓰고 시작한다.
+  function starterItems() {
+    const caps = ['hat-basic', 'hat-blue', 'hat-green', 'hat-yellow'];
+    const ids = ['hair-basic', 'shoes-basic'];
+    if (Math.random() < 0.5) ids.push(caps[Math.floor(Math.random() * caps.length)]);
+    return ids;
   }
 
   function equipToggle(ids, id) {
@@ -258,6 +300,7 @@
     byId: (id) => BY_ID.get(id),
     drawIcon,
     applyEquip,
-    equipToggle
+    equipToggle,
+    starterItems
   };
 })();

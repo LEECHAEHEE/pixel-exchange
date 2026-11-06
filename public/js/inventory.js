@@ -26,7 +26,18 @@
     try { d = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { /* 빈 인벤토리로 시작 */ }
     const known = (a) => Array.isArray(a) ? a.filter(id => PX.items.byId(id)) : [];
     const owned = known(d.owned);
-    return { owned, equip: known(d.equip).filter(id => owned.includes(id)) };
+    let equip = known(d.equip).filter(id => owned.includes(id));
+    // 기본 착장은 한 번만 준다. 이미 같은 부위를 입고 있으면 보유만 하고 착용은 그대로 둔다.
+    if (!d.starter) {
+      for (const id of PX.items.starterItems()) {
+        if (!owned.includes(id)) owned.push(id);
+        const slot = PX.items.byId(id).slot;
+        if (!equip.some(e => PX.items.byId(e).slot === slot)) equip = PX.items.equipToggle(equip, id);
+      }
+    }
+    const state = { owned, equip, starter: 1 };
+    save(state);
+    return state;
   }
 
   function save(state) {

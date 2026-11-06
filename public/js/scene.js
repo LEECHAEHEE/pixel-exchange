@@ -225,8 +225,9 @@
     const bow = pose && pose.bow ? pose.bow : 0;
     const lean = bow === 2 ? (dir === 'left' ? -1 : dir === 'right' ? 1 : 0) : 0;
     const cx = x + lean;
+    // 몸통(x-4 ~ x+3)과 좌우가 맞도록 두 다리를 양끝에 두고 가운데 두 칸을 비운다
     const p = [
-      [x - 3, y - 4, 3, 3 - lUp, look.pants],
+      [x - 4, y - 4, 3, 3 - lUp, look.pants],
       [x + 1, y - 4, 3, 3 - rUp, look.pants],
       [x - 4, y - 10, 8, 6, look.shirt],
       [cx - 4, y - 17 + bow, 8, 7, PAL.skin]
@@ -235,26 +236,26 @@
 
     // 하의 무늬: 반바지(무릎 아래 맨살), 체크
     if (look.shorts) {
-      rect(g, x - 3, y - 3, 3, 1, PAL.skin);
+      rect(g, x - 4, y - 3, 3, 1, PAL.skin);
       rect(g, x + 1, y - 3, 3, 1, PAL.skin);
     }
     if (look.check) {
-      rect(g, x - 3, y - 4, 1, 1, look.check);
-      rect(g, x - 1, y - 3, 1, 1, look.check);
+      rect(g, x - 4, y - 4, 1, 1, look.check);
+      rect(g, x - 2, y - 3, 1, 1, look.check);
       rect(g, x + 1, y - 4, 1, 1, look.check);
       rect(g, x + 3, y - 3, 1, 1, look.check);
     }
     if (look.stripe) {
-      rect(g, x - 3, y - 4, 1, 2, look.stripe);
+      rect(g, x - 4, y - 4, 1, 2, look.stripe);
       rect(g, x + 3, y - 4, 1, 2, look.stripe);
     }
 
     const shoe = look.shoes || PAL.shoe;
-    rect(g, x - 3, y - 2 - lUp, 3, 1, shoe);
+    rect(g, x - 4, y - 2 - lUp, 3, 1, shoe);
     rect(g, x + 1, y - 2 - rUp, 3, 1, shoe);
     // 슬리퍼는 발가락이 보인다
     if (look.slipper) {
-      rect(g, x - 2, y - 2 - lUp, 1, 1, PAL.skin);
+      rect(g, x - 3, y - 2 - lUp, 1, 1, PAL.skin);
       rect(g, x + 2, y - 2 - rUp, 1, 1, PAL.skin);
     }
 
@@ -322,7 +323,15 @@
     const hy = y - 17 + bow;
     const hair = look.hair;
     const crownRows = 2 + bow;
-    if (dir === 'up') {
+    // 상점에서 산 헤어스타일. 머리 꼭대기를 덮는 모자·왕관을 쓰면 위로 솟은 머리는 눌려 안 보인다.
+    if (look.hairStyle && PX.hairs.draw(g, cx, hy, look.hairStyle, dir, hair, !!(look.cap || look.crown))) {
+      // 끝까지 숙이면 눈을 가린다(눈 자리는 기본 머리와 같다)
+      if (bow === 2) {
+        if (dir === 'down') { rect(g, cx - 2, hy + 4, 1, 1, PAL.skin); rect(g, cx + 1, hy + 4, 1, 1, PAL.skin); }
+        else if (dir === 'left') rect(g, cx - 3, hy + 4, 1, 1, PAL.skin);
+        else if (dir === 'right') rect(g, cx + 2, hy + 4, 1, 1, PAL.skin);
+      }
+    } else if (dir === 'up') {
       rect(g, cx - 4, hy, 8, 6, hair);
       rect(g, cx - 4, hy + 3, 1, 2, PAL.skin);
       rect(g, cx + 3, hy + 3, 1, 2, PAL.skin);
@@ -479,11 +488,13 @@
     const hx = x + 3 + tilt;
     const hy = y - 6 + (pose && pose.bow ? pose.bow : 0);
     parts(g, [[hx, hy, 8, 7, PAL.skin]]);
-    if (look.bald) {
+    // 헤어스타일 뒷모습. 어깨 아래로 내려온 머리는 뒤에 그리는 등받이가 가린다.
+    const styled = look.hairStyle && PX.hairs.draw(g, hx + 4, hy, look.hairStyle, 'up', look.hair, !!(look.cap || look.crown));
+    if (!styled && look.bald) {
       rect(g, hx, hy + 2, 1, 4, look.hair);
       rect(g, hx + 7, hy + 2, 1, 4, look.hair);
       rect(g, hx + 1, hy + 4, 6, 3, look.hair);
-    } else {
+    } else if (!styled) {
       rect(g, hx, hy, 8, 7, look.hair);
       rect(g, hx, hy + 3, 1, 2, PAL.skin);
       rect(g, hx + 7, hy + 3, 1, 2, PAL.skin);
