@@ -93,8 +93,11 @@
     const tabsEl = el.querySelector('.inv-tabs');
 
     const CATS = PX.items.categories;
-    // 한 탭에 한 번에 보이는 아이템 수. 넘치면 목록 안에서 스크롤한다.
+    // 한 탭에 보이는 아이템 수. 화면 높이에 들어가는 만큼(1~5개)으로 정하고, 넘치면 목록 안에서 스크롤한다.
     const VISIBLE_MAX = 5;
+    const VISIBLE_MIN = 1;
+    // 빈 탭에는 잴 카드가 없으므로 마지막으로 잰 카드 높이를 쓴다
+    let cardH = 0;
 
     let dirIdx = 0;
     let buttons = [];
@@ -137,16 +140,30 @@
       selectTab(CATS[(i + d + CATS.length) % CATS.length].id);
     }
 
-    // 아이템 카드 높이를 재서 목록 높이를 최대 5개분으로 막는다(화면이 작으면 창 높이가 먼저 막는다)
-    function capListHeight() {
+    // 목록 높이를 카드 n개분으로 딱 맞춘다. n 은 창의 나머지 부분을 빼고 화면에 온전히 들어가는 카드 수(1~5).
+    // 보유 개수나 빈 탭과 상관없이 같은 화면에서는 늘 같은 높이라, 탭을 넘겨도 창 크기가 흔들리지 않는다.
+    function fitList() {
       const first = itemsEl.querySelector('.item');
-      if (!first) { itemsEl.style.maxHeight = ''; return; }
+      if (first) cardH = first.offsetHeight;
+      if (!cardH) return;
       const cs = getComputedStyle(itemsEl);
       const gap = parseFloat(cs.rowGap) || 0;
       const pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
       const border = parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
-      const h = first.offsetHeight * VISIBLE_MAX + gap * (VISIBLE_MAX - 1) + pad + border;
-      itemsEl.style.maxHeight = Math.ceil(h) + 'px';
+      // 목록을 잠깐 0 으로 줄인 상태에서 목록 위(제목·탭 등)와 아래(창 아래 테두리·안내줄)를 잰다.
+      // 왼쪽 캐릭터 칸이 더 길어도 목록 칸 기준으로 재야 하므로 창 전체 높이를 쓰지 않는다.
+      const box = el.querySelector('.inv-box');
+      const body = el.querySelector('.inv-body');
+      itemsEl.style.flex = 'none';
+      itemsEl.style.minHeight = '0';
+      itemsEl.style.height = '0px';
+      const boxR = box.getBoundingClientRect();
+      const bodyR = body.getBoundingClientRect();
+      const above = itemsEl.getBoundingClientRect().top - boxR.top;
+      const below = boxR.bottom - bodyR.bottom + parseFloat(getComputedStyle(body).paddingBottom);
+      const room = window.innerHeight - 16 - above - below - pad - border;
+      const n = Math.max(VISIBLE_MIN, Math.min(VISIBLE_MAX, Math.floor((room + gap) / (cardH + gap))));
+      itemsEl.style.height = Math.ceil(cardH * n + gap * (n - 1) + pad + border) + 'px';
     }
 
     function drawPreview() {
@@ -186,7 +203,7 @@
           ? '이 분류에는 산 아이템이 없습니다. ← → 로 다른 분류를 보세요.'
           : '아직 산 아이템이 없습니다. 오른쪽 끝 상점 주인에게 구매해 보세요.';
         itemsEl.appendChild(p);
-        itemsEl.style.maxHeight = '';
+        fitList();
         return;
       }
       // 상점과 같은 순서로 보여 준다
@@ -218,7 +235,7 @@
         itemsEl.appendChild(card);
         buttons.push(btn);
       }
-      capListHeight();
+      fitList();
       select(Math.min(sel, buttons.length - 1));
     }
 
@@ -270,6 +287,8 @@
       drawPreview();
     }
 
+    // 창 크기가 바뀌면 들어가는 카드 수도 다시 정한다
+    window.addEventListener('resize', () => { if (!el.hidden) fitList(); });
     el.querySelector('.inv-close').addEventListener('click', close);
     el.addEventListener('pointerdown', (e) => { if (e.target === el) close(); });
     for (const b of el.querySelectorAll('[data-turn]')) b.addEventListener('click', () => turn(Number(b.dataset.turn)));
