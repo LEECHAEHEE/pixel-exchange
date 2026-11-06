@@ -225,10 +225,10 @@
     const bow = pose && pose.bow ? pose.bow : 0;
     const lean = bow === 2 ? (dir === 'left' ? -1 : dir === 'right' ? 1 : 0) : 0;
     const cx = x + lean;
-    // 몸통(x-4 ~ x+3)과 좌우가 맞도록 두 다리를 양끝에 두고 가운데 두 칸을 비운다
+    // 다리 바깥 테두리가 상의 양 끝선(x-4, x+3)에 오도록 두 칸 폭 다리 사이에 두 칸을 비운다
     const p = [
-      [x - 4, y - 4, 3, 3 - lUp, look.pants],
-      [x + 1, y - 4, 3, 3 - rUp, look.pants],
+      [x - 3, y - 4, 2, 3 - lUp, look.pants],
+      [x + 1, y - 4, 2, 3 - rUp, look.pants],
       [x - 4, y - 10, 8, 6, look.shirt],
       [cx - 4, y - 17 + bow, 8, 7, PAL.skin]
     ];
@@ -236,27 +236,27 @@
 
     // 하의 무늬: 반바지(무릎 아래 맨살), 체크
     if (look.shorts) {
-      rect(g, x - 4, y - 3, 3, 1, PAL.skin);
-      rect(g, x + 1, y - 3, 3, 1, PAL.skin);
+      rect(g, x - 3, y - 3, 2, 1, PAL.skin);
+      rect(g, x + 1, y - 3, 2, 1, PAL.skin);
     }
     if (look.check) {
-      rect(g, x - 4, y - 4, 1, 1, look.check);
+      rect(g, x - 3, y - 4, 1, 1, look.check);
       rect(g, x - 2, y - 3, 1, 1, look.check);
-      rect(g, x + 1, y - 4, 1, 1, look.check);
-      rect(g, x + 3, y - 3, 1, 1, look.check);
+      rect(g, x + 1, y - 3, 1, 1, look.check);
+      rect(g, x + 2, y - 4, 1, 1, look.check);
     }
     if (look.stripe) {
-      rect(g, x - 4, y - 4, 1, 2, look.stripe);
-      rect(g, x + 3, y - 4, 1, 2, look.stripe);
+      rect(g, x - 3, y - 4, 1, 2, look.stripe);
+      rect(g, x + 2, y - 4, 1, 2, look.stripe);
     }
 
     const shoe = look.shoes || PAL.shoe;
-    rect(g, x - 4, y - 2 - lUp, 3, 1, shoe);
-    rect(g, x + 1, y - 2 - rUp, 3, 1, shoe);
+    rect(g, x - 3, y - 2 - lUp, 2, 1, shoe);
+    rect(g, x + 1, y - 2 - rUp, 2, 1, shoe);
     // 슬리퍼는 발가락이 보인다
     if (look.slipper) {
-      rect(g, x - 3, y - 2 - lUp, 1, 1, PAL.skin);
-      rect(g, x + 2, y - 2 - rUp, 1, 1, PAL.skin);
+      rect(g, x - 2, y - 2 - lUp, 1, 1, PAL.skin);
+      rect(g, x + 1, y - 2 - rUp, 1, 1, PAL.skin);
     }
 
     // 상의 위에 덧그리는 것: 조끼, 넥타이, 가슴 무늬, 트레이닝 옆줄
