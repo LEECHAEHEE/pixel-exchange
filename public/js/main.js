@@ -193,6 +193,7 @@
     race.update();
 
     showMap(scene.map);
+    mafia.setMap(scene.map);
     const state = scene.map === 'exchange' ? scene.prompt() : scene.map + ':' + scene.prompt();
     if (state !== hintState) {
       // 앉으면 전광판을 크게, 일어나면 원래 자리로
@@ -230,6 +231,10 @@
     if (m.status) board.setStatus(m.status.text, m.status.live);
   }
 
+  // 마피아존 UI (scene.map==='mafiazone' 일 때만 보인다). mz* 메시지를 처리한다.
+  const mafia = PX.createMafia({ scene, chat, whoOf, send: (m) => net.send(m) });
+  PX.mafia = mafia;
+
   const net = PX.createNet({
     url: (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws',
     joinExtra: () => ({ equip: inventory.equipped }),
@@ -238,7 +243,7 @@
       if (state === 'connecting') onlineEl.textContent = '연결 중';
       if (state === 'closed') onlineEl.textContent = '연결 끊김 · 재접속 대기';
     },
-    handlers: {
+    handlers: Object.assign({}, mafia.handlers, {
       welcome(msg) {
         // 재접속이면 이전 사람들의 말풍선·닉네임표를 먼저 치운다
         for (const [id] of scene.net.names()) chat.remove(id);
@@ -289,7 +294,7 @@
       indices(msg) { board.setIndices(msg.indices); },
       ticker(msg) { board.setTicker(msg.text); },
       status(msg) { board.setStatus(msg.text, msg.live); }
-    }
+    })
   });
 
   scene.hooks.onSit = (seat) => net.send({ t: 'sit', seat });
