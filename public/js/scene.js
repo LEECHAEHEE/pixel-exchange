@@ -216,7 +216,9 @@
 
   // (x, y) 는 발끝 가운데. frame 0 은 정지, 1·2 는 걷기 동작.
   // pose: 감정표현 중일 때의 자세. { bow: 0|1|2 } 는 꾸벅 인사(머리를 숙인 칸 수).
+  //       { fall: 'left'|'right' } 는 말발굽에 차여 그쪽으로 넘어져 누운 모습.
   function drawPerson(g, x, y, look, dir, frame, pose, noShadow) {
+    if (pose && pose.fall) { drawFallen(g, x, y, look, pose.fall); return; }
     if (!noShadow) rect(g, x - 4, y - 1, 8, 2, 'rgba(0,0,0,0.18)');
 
     const lUp = frame === 1 ? 1 : 0;
@@ -363,6 +365,30 @@
     drawHeadwear(g, cx, hy, look, dir);
   }
 
+  // 넘어져 누운 사람. 선 모습(앞모습)을 따로 그려 90도 돌려 붙이므로 입은 아이템이 그대로 보인다.
+  // 90도 회전은 도트가 정확히 칸에 맞아 뭉개지지 않는다. (x, y) 는 원래 발끝 자리로, 머리가 side 쪽으로 간다.
+  const FALL_W = 24, FALL_H = 28;
+  let fallCanvas = null;
+  function drawFallen(g, x, y, look, side) {
+    if (!fallCanvas) fallCanvas = makeCanvas(FALL_W, FALL_H);
+    const f = fallCanvas;
+    f.g.clearRect(0, 0, FALL_W, FALL_H);
+    drawPerson(f.g, FALL_W / 2, FALL_H - 2, look, 'down', 0, null, true);
+    const s = side === 'left' ? -1 : 1;
+    // 몸이 바닥에 깔린 자리의 그림자
+    rect(g, s > 0 ? x - 2 : x - 18, y - 1, 20, 2, 'rgba(0,0,0,0.18)');
+    g.save();
+    g.translate(x, y - 4);
+    g.rotate(s * Math.PI / 2);
+    g.drawImage(f.c, -FALL_W / 2, -(FALL_H - 2));
+    g.restore();
+    // 머리 위로 별이 돈다
+    const t = Math.floor(performance.now() / 200) % 2;
+    const hx = x + s * 20;
+    rect(g, hx - 3 + t * 4, y - 12, 1, 1, '#ffe04a');
+    rect(g, hx + 1 - t * 4, y - 14, 1, 1, '#ffe04a');
+  }
+
   // ---------- 말 탄 사람 ----------
   // 경마장 마굿간에서 훔친 말을 탄 사람. 말은 외형(look)이 아니라 따로 그리므로
   // 아이템을 갈아입어도 옷만 바뀌고 말은 그대로다.
@@ -370,27 +396,43 @@
   const HORSE = { coat: '#8a5530', dark: '#5e3820', mane: '#2e1d14', saddle: '#b8302a' };
 
   // (x, y) 는 말 발끝 가운데. frame 은 사람과 같다(0 정지, 1·2 걸음).
+  // pose.rear: 앞발차기 중. 1 은 앞발을 접어 드는 중, 2 는 앞으로 뻗어 차는 순간.
   function drawRider(g, x, y, look, dir, frame, pose) {
     const H = HORSE;
     const shoe = look.shoes || PAL.shoe;
+    const rear = pose && pose.rear ? pose.rear : 0;
     rect(g, x - 9, y - 1, 18, 2, 'rgba(0,0,0,0.18)');
     if (dir === 'left' || dir === 'right') {
       const s = dir === 'right' ? 1 : -1;
       const R = (px, py, w, h, c) => rect(g, s > 0 ? x + px : x - px - w + 1, y + py, w, h, c);
-      // 다리 넷: 걸을 때 앞뒤 다리가 번갈아 들린다
+      // 다리 넷: 걸을 때 앞뒤 다리가 번갈아 들린다. 앞발차기 중에는 앞다리(뒤의 둘)를 앞으로 든다.
       const up = frame === 1 ? [0, 1, 1, 0] : frame === 2 ? [1, 0, 0, 1] : [0, 0, 0, 0];
       [-6, -4, 3, 5].forEach((lx, i) => {
-        R(lx, -5, 1, 4 - up[i], H.dark);
-        R(lx, -1 - up[i], 1, 1, PAL.outline);
+        if (rear && i >= 2) return;
+        R(lx, -5, 1, 4 - (rear ? 0 : up[i]), H.dark);
+        R(lx, -1 - (rear ? 0 : up[i]), 1, 1, PAL.outline);
       });
-      // 몸통·목·머리(외곽선 먼저)
-      const body = [[-7, -10, 14, 5], [5, -14, 3, 6], [7, -16, 4, 3]];
+      if (rear) {
+        const len = rear === 2 ? 4 : 2;
+        for (const ly of rear === 2 ? [-8, -6] : [-7, -5]) {
+          R(6, ly, len, 1, H.dark);
+          R(6 + len, ly, 1, 1, PAL.outline);
+        }
+        // 차는 순간 발굽 앞에 번쩍
+        if (rear === 2) {
+          R(13, -9, 1, 1, PAL.paper);
+          R(14, -7, 1, 1, '#ffe04a');
+          R(13, -5, 1, 1, PAL.paper);
+        }
+      }
+      // 몸통·목·머리(외곽선 먼저). 앞발을 들면 고개도 치켜든다.
+      const body = [[-7, -10, 14, 5], [5, -14 - rear, 3, 6], [7, -16 - rear, 4, 3]];
       for (const [px, py, w, h] of body) R(px - 1, py - 1, w + 2, h + 2, PAL.outline);
       for (const [px, py, w, h] of body) R(px, py, w, h, H.coat);
       R(-7, -6, 14, 1, H.dark);
-      R(5, -15, 1, 6, H.mane);
-      R(9, -15, 1, 1, PAL.outline);
-      R(10, -14, 1, 1, H.dark);
+      R(5, -15 - rear, 1, 6, H.mane);
+      R(9, -15 - rear, 1, 1, PAL.outline);
+      R(10, -14 - rear, 1, 1, H.dark);
       R(-9, -10, 2, 1, H.mane);
       R(-10, -9, 2, 4, H.mane);
       // 사람은 말 등 위에, 안장과 늘어뜨린 다리는 그 위에 덧그린다
@@ -400,11 +442,21 @@
       R(-1, -6, 2, 1, shoe);
       return;
     }
-    // 앞모습·뒷모습: 좁은 몸통 양옆으로 사람 다리가 걸친다
-    const a = frame === 1 ? 1 : 0, b = frame === 2 ? 1 : 0;
+    // 앞모습·뒷모습: 좁은 몸통 양옆으로 사람 다리가 걸친다.
+    // 앞발차기 중에는 말이 일어서듯 몸이 rear 칸만큼 올라가고 다리가 그만큼 길어진다.
+    const a = rear ? 0 : frame === 1 ? 1 : 0, b = rear ? 0 : frame === 2 ? 1 : 0;
     for (const [lx, u] of [[-3, a], [2, b]]) {
-      rect(g, x + lx, y - 5, 1, 4 - u, H.dark);
+      rect(g, x + lx, y - 5 - rear, 1, 4 - u + rear, H.dark);
       rect(g, x + lx, y - 1 - u, 1, 1, PAL.outline);
+    }
+    if (rear) {
+      // 앞모습이면 차는 순간 발밑 앞쪽이 번쩍인다(치켜든 앞발굽은 맨 끝에 덧그린다)
+      if (dir === 'down' && rear === 2) {
+        rect(g, x - 3, y + 2, 1, 1, PAL.paper);
+        rect(g, x, y + 3, 1, 1, '#ffe04a');
+        rect(g, x + 3, y + 2, 1, 1, PAL.paper);
+      }
+      y -= rear;
     }
     parts(g, [[x - 3, y - 11, 6, 6, H.coat]]);
     drawPerson(g, x, y - RIDE_H, look, dir, 0, pose, true);
@@ -420,6 +472,13 @@
       rect(g, x - 2, y - 8, 1, 1, PAL.outline);
       rect(g, x + 1, y - 8, 1, 1, PAL.outline);
       rect(g, x - 1, y - 5, 2, 1, H.dark);
+      // 앞발차기: 치켜든 앞발굽이 말 머리 양옆으로 나온다
+      if (rear === 2) {
+        rect(g, x - 4, y - 5, 2, 1, H.dark);
+        rect(g, x + 2, y - 5, 2, 1, H.dark);
+        rect(g, x - 4, y - 4, 2, 1, PAL.outline);
+        rect(g, x + 2, y - 4, 2, 1, PAL.outline);
+      }
     } else {
       // 뒷모습: 꼬리
       rect(g, x - 1, y - 9, 2, 5, H.mane);
@@ -427,9 +486,10 @@
   }
 
   // 서 있는 사람 하나. 말을 탔으면 말과 함께 그린다.
-  function drawStanding(g, x, y, p, pose) {
-    if (p.rider) drawRider(g, x, y, p.look, p.dir, p.frame, pose);
-    else drawPerson(g, x, y, p.look, p.dir, p.frame, pose);
+  // look 을 주면 그 모습으로 그린다(풋살장 팀 유니폼처럼 그 자리에서만 바뀌는 옷).
+  function drawStanding(g, x, y, p, pose, look) {
+    if (p.rider) drawRider(g, x, y, look || p.look, p.dir, p.frame, pose);
+    else drawPerson(g, x, y, look || p.look, p.dir, p.frame, pose);
   }
 
   // 머리에 쓰는 것. x 는 머리 가운데(머리는 x-4 ~ x+3), hy 는 머리 꼭대기 줄.
@@ -800,6 +860,7 @@
 
     // Space 하나로 말 걸기·앉기·일어나기를 모두 한다. 사람이 의자보다 우선.
     function act() {
+      if (isDown(player)) return;
       if (player.seat) { stand(); return; }
       const stall = stallFacing();
       if (stall >= 0) {
@@ -824,6 +885,12 @@
 
     window.addEventListener('keydown', (e) => {
       if (isTyping(e) || !player.active || locked) return;
+      // F: 말 탄 채 앞발차기. 감정표현 판이 떠 있을 때는 판이 키를 가로채지 않으므로 여기서 거른다.
+      if (e.code === 'KeyF') {
+        if (!e.repeat && !(PX.emote && PX.emote.open)) kick();
+        e.preventDefault();
+        return;
+      }
       if (e.code === 'Space') {
         if (!e.repeat) act();
         e.preventDefault();
@@ -831,6 +898,8 @@
       }
       const k = KEYMAP[e.code];
       if (!k) return;
+      // 풋살장에서는 S 가 패스, D 가 슛이라 WASD 로 걷지 않는다(방향키만)
+      if (area.arrowsOnly && !e.code.startsWith('Arrow')) return;
       e.preventDefault();
       if (player.seat) {
         // 앉은 채 ↑ 는 전광판 쪽이라 그대로 앉아 있고, 다른 방향은 일어선다
@@ -850,7 +919,8 @@
       const rc = canvas.getBoundingClientRect();
       const x = (e.clientX - rc.left) / rc.width * W;
       const y = (e.clientY - rc.top) / rc.height * H;
-      if (!player.active || locked) return;
+      // 넘어져 있는 동안은 클릭으로도 못 움직인다
+      if (!player.active || locked || isDown(player)) return;
       // 착석 화면은 좌표계가 달라서, 아래 띠를 누르면 일어나기만 한다
       if (player.seat) { stand(); return; }
       if (area.floorY && y < area.floorY) return;
@@ -865,6 +935,8 @@
     function updatePlayer(dt) {
       player.moving = false;
       if (!player.active || player.seat) return;
+      // 넘어져 있는 동안은 방향키를 눌러도 일어날 때까지 그대로 누워 있다
+      if (isDown(player)) { animate(player, false, dt); return; }
       let dx = 0, dy = 0;
       if (keys.has('left')) dx -= 1;
       if (keys.has('right')) dx += 1;
@@ -952,7 +1024,9 @@
           continue;
         }
         const px = Math.round(p.x), py = Math.round(p.y);
-        list.push({ key: py, draw: () => drawStanding(g, px, py, p, poseOf(p, nowMs)) });
+        // 장소가 옷을 바꿔 보여 줄 수 있다(풋살장 팀 유니폼). 착용 아이템은 그대로 둔다.
+        const look = area.dress ? area.dress(p === player ? 'me' : p.id, p.look) : null;
+        list.push({ key: py, draw: () => drawStanding(g, px, py, p, poseOf(p, nowMs), look) });
       }
       if (dogHere()) {
         const dx = Math.round(dog.x), dy = Math.round(dog.y);
@@ -1037,13 +1111,13 @@
       return p.seat ? p.seat.x + CHAIR_W / 2 : p.x;
     }
 
-    // 안내 문구용 현재 상태: 'seated' | 'talk' | 'near' | 'free'
+    // 안내 문구용 현재 상태: 'seated' | 'talk' | 'near' | 'ride'(말 탄 채 빈 곳) | 'free'
     function prompt() {
       if (player.seat) return 'seated';
       if (shopFacing()) return 'talk';
       const stall = stallFacing();
       if (stall >= 0) return player.rider ? 'return' : stable.stalls[stall] ? 'steal' : 'empty';
-      return seatFacing() ? 'near' : 'free';
+      return seatFacing() ? 'near' : player.rider ? 'ride' : 'free';
     }
 
     // 말풍선·닉네임이 붙을 머리 위 지점(화면 논리 좌표). 화면에 안 보이면 null.
@@ -1065,11 +1139,31 @@
         return { x, y: ST.y - 1 };
       }
       if (p.seat) return { x: p.seat.x + CHAIR_W / 2, y: p.seat.y - 9 };
+      // 넘어져 누워 있으면 머리가 옆으로 가 있다
+      if (poseOf(p, performance.now())?.fall) return { x: p.x + (p.fall.side === 'left' ? -10 : 10), y: p.y - 10 };
       return { x: p.x, y: p.y - (p.rider ? 19 + RIDE_H : 19) };
     }
 
     function releaseKeys() {
       keys.clear();
+    }
+
+    // 서버가 정한 자리로 순간이동(풋살 킥오프 대형). 걷던 길은 버린다.
+    function teleport(x, y, dir) {
+      if (!player.active || player.seat) return;
+      player.x = x;
+      player.y = y;
+      if (dir) player.dir = dir;
+      player.route = null;
+      player.moving = false;
+    }
+
+    // 지금 화면에 그려지는 사람(나 'me' 또는 접속자 id). 같은 장소에 서 있을 때만.
+    // 풋살장이 드리블 공을 그 사람 발 앞에 붙여 그릴 때 쓴다.
+    function where(who) {
+      const p = who === 'me' ? (player.active ? player : null) : remotes.get(who);
+      if (!p || p.seat || p.map !== player.map) return null;
+      return p;
     }
 
     // ---------- 서버 동기화 ----------
@@ -1279,7 +1373,68 @@
       p.emote = { type, start: now, until: now + EMOTE_MS[type] };
     }
 
+    // ---------- 앞발차기 ----------
+
+    // 말 탄 사람이 F 를 누르면 말이 앞발을 들어 앞을 찬다: 접어 듦 → 뻗어 참 → 내림.
+    // 맞았는지는 서버(server/stable.js hoof)가 정해 hoof 메시지로 알려 준다.
+    const HOOF_MS = 650;
+    const HOOF_STEPS = [[150, 1], [450, 2], [650, 1]];
+    // 다시 찰 수 있는 간격. 서버는 전송이 들쭉날쭉한 것을 봐 주려고 0.9초로 조금 짧다.
+    const HOOF_GAP_MS = 1000;
+    // 맞은 사람: 누워 있다가(별이 돈다) 마지막에 반쯤 숙인 채 일어난다. 서버 FALL_MS 와 같다.
+    const FALL_MS = 1800;
+    const FALL_UP_MS = 1500;
+    // 맞으면 찬 방향으로 이만큼 밀려난다(내 화면만 옮기면 위치 전송으로 남에게도 보인다)
+    const PUSH_PX = 8;
+    let lastKick = -Infinity;
+
+    function isDown(p) {
+      return !!p.fall && performance.now() < p.fall.until;
+    }
+
+    // 서버 확인을 기다리지 않고 먼저 앞발을 든다
+    function kick() {
+      const now = performance.now();
+      if (!player.rider || player.seat || isDown(player) || now - lastKick < HOOF_GAP_MS) return;
+      lastKick = now;
+      player.hoof = { until: now + HOOF_MS };
+      if (hooks.onHoof) hooks.onHoof(player.dir);
+    }
+
+    // who: 찬 사람('me' 또는 id), hits: [[맞은 사람('me' 또는 id), 넘어지는 쪽 'left'|'right']]
+    function hoof(who, dir, hits) {
+      const now = performance.now();
+      if (who !== 'me') {
+        const r = remotes.get(who);
+        if (r) {
+          r.dir = dir;
+          r.hoof = { until: now + HOOF_MS };
+        }
+      }
+      for (const [id, side] of hits) {
+        const p = id === 'me' ? player : remotes.get(id);
+        if (!p || p.seat) continue;
+        p.fall = { side, until: now + FALL_MS };
+        if (p !== player) continue;
+        // 벽을 뚫지 않도록 두 칸씩 나눠 민다. 밀려도 바라보는 방향은 그대로다.
+        const keep = player.dir;
+        const [dx, dy] = DIRV[dir] || [0, 0];
+        for (let k = 0; k < PUSH_PX / 2; k++) moveBy(player, dx * 2, dy * 2);
+        player.dir = keep;
+        player.route = null;
+        keys.clear();
+      }
+    }
+
     function poseOf(p, now) {
+      if (p.fall && now < p.fall.until) {
+        return p.fall.until - now > FALL_MS - FALL_UP_MS ? { fall: p.fall.side } : { bow: 1 };
+      }
+      if (p.hoof && now < p.hoof.until) {
+        const t = now - (p.hoof.until - HOOF_MS);
+        const step = HOOF_STEPS.find(([end]) => t < end);
+        return step ? { rear: step[1] } : null;
+      }
       const e = p.emote;
       if (!e || now >= e.until) return null;
       if (e.type === 'bow') {
@@ -1291,7 +1446,7 @@
     }
 
     return {
-      update, render, prompt, anchor, releaseKeys, setLocked, setMyEquip, playEmote, player, hooks, net,
+      update, render, prompt, anchor, releaseKeys, setLocked, setMyEquip, playEmote, teleport, where, hoof, player, hooks, net,
       shopkeeperName: shopkeeper.name,
       get map() { return player.map; },
       get seatedView() { return !!player.seat; }

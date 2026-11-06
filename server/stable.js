@@ -29,6 +29,16 @@ const CATCH_PX = 9;
 const STALL_REACH = { x: 14, y: 16 };
 const SEND_MS = 200;
 
+// 앞발차기: 말이 앞발을 들어 바라보는 쪽 앞에 서 있는 사람을 넘어뜨린다.
+// 화면(public/js/scene.js HOOF_GAP_MS 1초)보다 조금 짧게 두어 전송이 들쭉날쭉해도 정상 입력은 막지 않는다.
+const HOOF_GAP_MS = 900;
+// 닿는 범위(말 발끝 가운데 기준). 옆모습은 말 머리가 앞으로 길게 나와 있어 더 멀리 닿는다.
+// 서버가 아는 위치는 0.1초 늦을 수 있어 몇 px 씩 넉넉히 봐 준다.
+const HOOF_SIDE = { ahead: 24, wide: 8 };   // 왼쪽·오른쪽을 볼 때
+const HOOF_FRONT = { ahead: 18, wide: 10 }; // 위·아래를 볼 때
+// 넘어진 사람은 그동안 다시 차이지 않는다(화면 public/js/scene.js FALL_MS 와 같다)
+const FALL_MS = 1800;
+
 function inArea(x, y) {
   return AREAS.some(r => x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1);
 }
@@ -71,6 +81,37 @@ function createStable({ users, broadcast, sendMap }) {
     stalls[u.mount] = null;
     setMount(u, null, 'return');
     return true;
+  }
+
+  // 말을 탈 수 없는 곳(풋살장)에 들어가면 말에서 내리고, 말은 원래 칸으로 돌아간다
+  function dismount(u, why) {
+    if (u.mount == null) return false;
+    stalls[u.mount] = null;
+    setMount(u, null, why);
+    return true;
+  }
+
+  // 말 탄 사람의 앞발차기. 앉은 사람·말 탄 사람·이미 넘어진 사람은 맞지 않는다.
+  // 맞은 사람마다 넘어지는 쪽(left|right)을 함께 보낸다. 위·아래로 찼으면 말 가운데에서 먼 쪽으로 넘어진다.
+  function hoof(u, dir, now) {
+    if (u.mount == null || u.seat != null || now - (u.lastHoof || 0) < HOOF_GAP_MS) return null;
+    if (dir) u.dir = dir;
+    u.lastHoof = now;
+    const side = u.dir === 'left' || u.dir === 'right';
+    const s = u.dir === 'left' || u.dir === 'up' ? -1 : 1;
+    const R = side ? HOOF_SIDE : HOOF_FRONT;
+    const hits = [];
+    for (const v of users.values()) {
+      if (v === u || v.map !== u.map || v.seat != null || v.mount != null || (v.downUntil || 0) > now) continue;
+      const ahead = side ? (v.x - u.x) * s : (v.y - u.y) * s;
+      const across = side ? v.y - u.y : v.x - u.x;
+      if (ahead < 0 || ahead > R.ahead || Math.abs(across) > R.wide) continue;
+      v.downUntil = now + FALL_MS;
+      hits.push([v.id, side ? u.dir : v.x >= u.x ? 'right' : 'left']);
+    }
+    // 아무도 안 맞아도 말이 앞발을 드는 모습은 그 장소 사람들에게 보인다
+    sendMap(u.map, { t: 'hoof', id: u.id, dir: u.dir, hits });
+    return hits;
   }
 
   function leave(u) {
@@ -181,7 +222,7 @@ function createStable({ users, broadcast, sendMap }) {
     return { stalls: stalls.map(id => id === null), keeper: keeperState() };
   }
 
-  return { steal, giveBack, leave, tick, busy, snapshot };
+  return { steal, giveBack, dismount, hoof, leave, tick, busy, snapshot };
 }
 
 module.exports = { createStable, STALL_X };

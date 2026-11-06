@@ -5,13 +5,14 @@
 const { createDog } = require('./dog');
 const { createMafia } = require('./mafia');
 const { createStable } = require('./stable');
+const { createFutsal } = require('./futsal');
 
 // public/js/scene.js 의 의자 배치(3줄 × 14개)와 맞춰야 한다
 const SEAT_COUNT = 42;
 // 장소마다 걸을 수 있는 모양이 달라 서버는 화면(320×180) 안인지만 본다
 const BOUNDS = { x0: 0, y0: 0, x1: 319, y1: 179 };
 // 객장(의자가 있는 곳)과 public/js/places.js 의 장소들
-const MAPS = new Set(['exchange', 'crossroad', 'racetrack', 'mafiazone']);
+const MAPS = new Set(['exchange', 'crossroad', 'racetrack', 'mafiazone', 'futsal']);
 const DIRS = new Set(['up', 'down', 'left', 'right']);
 // 감정표현 종류. 화면(emote.js·scene.js)에 새 표현을 넣으면 여기도 추가한다.
 const EMOTES = new Set(['bow']);
@@ -82,6 +83,18 @@ function createRoom({ market, race }) {
   });
   // 경마장 마굿간 말과 관리인. 말을 탔는지는 모두에게, 관리인 위치는 경마장을 보는 사람에게만 보낸다.
   const stable = createStable({ users, broadcast, sendMap: (map, msg) => sendMap(map, msg) });
+  // 풋살장 경기. 킥오프 때 서버가 선수를 제자리에 세우면 다른 사람에게도 바로 보이게 위치를 바뀐 것으로 표시한다.
+  const futsal = createFutsal({
+    send,
+    sendMap: (map, msg) => sendMap(map, msg),
+    place(u, x, y, dir) {
+      u.x = x;
+      u.y = y;
+      u.dir = dir;
+      u.moving = false;
+      dirty.add(u.id);
+    }
+  });
   let nextId = 1;
   let guestNo = 1;
 
@@ -129,6 +142,7 @@ function createRoom({ market, race }) {
     const msg = { t: 'sync', map: u.map, people, dog: dog.snapshot() };
     if (u.map === 'exchange') msg.market = market.snapshot();
     if (u.map === 'racetrack') msg.stable = stable.snapshot();
+    if (u.map === 'futsal') msg.futsal = futsal.snapshot();
     send(u, msg);
   }
 
@@ -162,6 +176,7 @@ function createRoom({ market, race }) {
     race.leave(u.id);
     stable.leave(u);
     if (u.map === 'mafiazone') mafia.leave(u);
+    if (u.map === 'futsal') futsal.leave(u);
     users.delete(u.id);
     dog.forget(u.id);
     dirty.delete(u.id);
@@ -222,10 +237,15 @@ function createRoom({ market, race }) {
         u.y = y;
         if (DIRS.has(msg.dir)) u.dir = msg.dir;
         u.moving = false;
+        // 풋살장에는 말을 타고 들어갈 수 없다. 내리고 말은 마굿간으로 돌려보낸다.
+        if (u.map === 'futsal') stable.dismount(u, 'futsal');
         broadcast({ t: 'go', id: u.id, map: u.map, x: u.x, y: u.y, dir: u.dir }, u.id);
         // 마피아존 입장/퇴장 → 마피아 게임 참가/이탈
         if (prevMap === 'mafiazone' && u.map !== 'mafiazone') mafia.leave(u);
         if (u.map === 'mafiazone' && prevMap !== 'mafiazone') mafia.enter(u);
+        // 풋살장 입장/퇴장 → 관전자로 들어오고, 나가면 팀에서 빠진다
+        if (prevMap === 'futsal' && u.map !== 'futsal') futsal.leave(u);
+        if (u.map === 'futsal' && prevMap !== 'futsal') futsal.enter(u);
         if (!u.idle) sendSync(u);
         return;
       }
@@ -242,6 +262,10 @@ function createRoom({ market, race }) {
         else if (msg.act === 'return') stable.giveBack(u);
         return;
       }
+      // 말 탄 사람의 앞발차기(F). 맞았는지는 서버가 위치로 정한다.
+      case 'hoof':
+        stable.hoof(u, DIRS.has(msg.dir) ? msg.dir : null, Date.now());
+        return;
       // 경마 투표. 결과(받아들인 번호 또는 거절 사유)는 본인에게만 알린다.
       case 'vote': {
         const r = race.vote(u, msg.horse);
@@ -282,6 +306,14 @@ function createRoom({ market, race }) {
       case 'mzConfirm':
       case 'mzSkip':
         if (u.map === 'mafiazone') mafia.handle(u, msg);
+        return;
+      // 풋살장 전용 메시지도 장소 안에 있을 때만 넘긴다
+      case 'fsTeam':
+      case 'fsStart':
+      case 'fsPass':
+      case 'fsShoot':
+      case 'fsTackle':
+        if (u.map === 'futsal') futsal.handle(u, msg);
         return;
     }
   }
