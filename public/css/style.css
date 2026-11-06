@@ -800,9 +800,11 @@ body {
   width: min(360px, calc(100% - 32px));
   max-height: 45vh;
   color: #f4ead8;
-  background: rgba(27, 20, 16, 0.92);
-  border: 3px solid #5e3a22;
-  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.4);
+  background: rgba(27, 20, 16, 0.96);
+  /* 입력창 바로 위에 붙어 한 몸처럼 보이도록 아래 테두리는 두지 않는다(입력창 테두리가 이어진다) */
+  border: 2px solid #5e3a22;
+  border-bottom: 0;
+  box-shadow: 4px 0 0 rgba(0, 0, 0, 0.35);
 }
 .chat-log[hidden] { display: none; }
 .chat-log-head {
