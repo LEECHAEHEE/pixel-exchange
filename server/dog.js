@@ -50,6 +50,15 @@ const MAPS = {
     ],
     zones: [{ x0: 30, x1: 290, y0: 32, y1: 56 }],
     junction: null
+  },
+  // 마피아존(public/js/places.js 의 walk·입구와 맞춤). 사회자 단상(위쪽) 아래 바닥을 돌아다닌다.
+  mafiazone: {
+    walk: [
+      { x0: 14, y0: 60, x1: 306, y1: 170 },    // 아레나 바닥
+      { x0: 0, y0: 88, x1: 16, y1: 108 }       // 왼쪽 통로 입구
+    ],
+    zones: [{ x0: 40, x1: 280, y0: 100, y1: 162 }],
+    junction: null
   }
 };
 

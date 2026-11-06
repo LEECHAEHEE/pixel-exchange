@@ -1022,6 +1022,8 @@
     function anchor(who) {
       // 강아지는 키가 작아 앉은 화면 띠에는 그리지 않는다
       if (who === 'dog') return dogHere() && !player.seat ? { x: dog.x, y: dog.y - 12 } : null;
+      // 마피아존 사회자(Claude) NPC — 고정 위치(places.js MZ.host 와 맞춤)
+      if (who === 'mzhost') return player.map === 'mafiazone' ? { x: 160, y: 40 } : null;
       const p = who === 'shop' ? (inExchange() ? shopkeeper : null)
         : who === 'me' ? (player.active ? player : null)
         : remotes.get(who);

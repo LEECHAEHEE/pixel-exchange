@@ -25,6 +25,8 @@
         <span id="mz-progress"></span>
       </div>
       <aside id="mz-roster"></aside>
+      <section class="mz-log-panel mz-game-panel"><header>📢 게임 진행 (사회자)</header><div id="mz-gamelog" class="mz-log"></div></section>
+      <section class="mz-log-panel mz-chat-panel"><header>💬 대화</header><div id="mz-chatlog" class="mz-log"></div></section>
       <button type="button" id="mz-start" hidden>START</button>
       <button type="button" id="mz-skip" hidden>건너뛰기 ▶</button>
       <div id="mz-dialog" class="mz-dialog" hidden>
@@ -37,10 +39,36 @@
     const rosterEl = $('#mz-roster'), startBtn = $('#mz-start'), skipBtn = $('#mz-skip');
     const dialog = $('#mz-dialog'), dlgName = dialog.querySelector('.mz-dlg-name'), dlgText = dialog.querySelector('.mz-dlg-text'), dlgOpts = dialog.querySelector('.mz-dlg-opts');
     const modal = $('#mz-modal');
+    const gameLogEl = $('#mz-gamelog'), chatLogEl = $('#mz-chatlog');
+
+    // 진행창(사회자/시스템) — 사회자는 말풍선으로도 말한다
+    function gameInfo(text) {
+      const d = document.createElement('div'); d.className = 'mz-logline'; d.textContent = text;
+      gameLogEl.appendChild(d); while (gameLogEl.childElementCount > 120) gameLogEl.firstChild.remove();
+      gameLogEl.scrollTop = gameLogEl.scrollHeight;
+    }
+    function hostSay(text) {
+      const d = document.createElement('div'); d.className = 'mz-logline mz-host';
+      const n = document.createElement('span'); n.className = 'mz-logname mz-hostname'; n.textContent = '사회자(Claude)';
+      d.append(n, document.createTextNode(' ' + text));
+      gameLogEl.appendChild(d); while (gameLogEl.childElementCount > 120) gameLogEl.firstChild.remove();
+      gameLogEl.scrollTop = gameLogEl.scrollHeight;
+      chat.say('mzhost', text); // 사회자 NPC 머리 위 말풍선
+    }
+    // 대화창(플레이어) — 말풍선도 함께
+    function addChat(name, text, channel, id) {
+      const d = document.createElement('div'); d.className = 'mz-logline mz-ch-' + (channel || 'public');
+      const n = document.createElement('span'); n.className = 'mz-logname'; n.textContent = name;
+      d.append(n, document.createTextNode(' ' + text));
+      chatLogEl.appendChild(d); while (chatLogEl.childElementCount > 120) chatLogEl.firstChild.remove();
+      chatLogEl.scrollTop = chatLogEl.scrollHeight;
+      if (id) chat.say(whoOf(id), text); // 말하는 사람 머리 위 말풍선
+    }
 
     // ---------- 상태 ----------
     let inZone = false, myId = null, myRole = null, myMates = [];
     let players = [], phase = 'lobby', day = 0, endsAt = 0, accusedId = null, votes = null;
+    let nightTimer = null; // 시민 밤 심심풀이 문구 회전
 
     const meU = () => players.find(p => p.id === myId);
     const amAlive = () => { const m = meU(); return !!(m && m.alive && !m.spectator); };
@@ -100,11 +128,13 @@
     // ---------- 페이즈별 내 액션 ----------
     function onPhase() {
       dlgClose();
+      clearInterval(nightTimer); nightTimer = null;
       scene.setTarget && scene.setTarget(null);
       updateStartBtn();
       // 밤에는 이동 잠금
       scene.setLocked(inZone && phase === 'night');
-      skipBtn.hidden = !(inZone && amAlive() && (phase === 'night' || phase === 'day_discuss'));
+      // 낮 토론에서만 별도 건너뛰기 버튼(밤에는 선택창 안의 '건너뛰기'로 처리)
+      skipBtn.hidden = !(inZone && amAlive() && phase === 'day_discuss');
       if (!skipBtn.hidden) skipBtn.textContent = '건너뛰기 ▶';
       if (!inZone || !amAlive()) return;
 
@@ -125,7 +155,25 @@
           ]);
           openPick();
         } else {
-          dlgShow('밤', '밤이 깊었습니다. 다수가 동의하면 바로 아침으로 넘어갑니다.', [{ label: '건너뛰기', onClick: () => send({ t: 'mzSkip' }) }]);
+          // 시민 등 능력이 없는 사람: 밤 동안 심심하지 않게 문구를 돌리고 '양 세기' 토이를 준다
+          const FLAVOR = [
+            '🌙 고요한 밤입니다. 모두 눈을 감았어요…',
+            '🤫 숨죽이고 아침을 기다립니다',
+            '👀 누가 마피아일지 곰곰이 생각하는 중…',
+            '💤 꾸벅꾸벅… 잠이 오네요',
+            '🍜 야식이 땡기는 밤…',
+            '🐑 양이나 세어 볼까요?'
+          ];
+          let fi = 0, sheep = 0;
+          const render = () => dlgShow('밤 · 시민', FLAVOR[fi % FLAVOR.length], [
+            { label: `🐑 양 세기 (${sheep})`, onClick: () => { sheep++; render(); } },
+            { label: '건너뛰기', onClick: () => send({ t: 'mzSkip' }) }
+          ]);
+          render();
+          nightTimer = setInterval(() => {
+            if (!inZone || phase !== 'night') { clearInterval(nightTimer); nightTimer = null; return; }
+            fi++; render();
+          }, 3000);
         }
       } else if (phase === 'day_vote') {
         dlgShow('투표', '처형할 용의자를 지목하세요.', aliveOthers().map(p => ({ label: p.name, onClick: () => send({ t: 'mzVote', target: p.id }) })));
@@ -150,7 +198,7 @@
       const readyN = players.filter(p => p.ready && !p.spectator).length;
       const iReady = !!(m && m.ready);
       startBtn.classList.toggle('on', iReady);
-      startBtn.textContent = (iReady ? '준비 완료 ✓ (취소)' : 'START') + `  ·  준비 ${readyN}/${n}` + (n < 4 ? ' (최소 4명)' : '');
+      startBtn.textContent = (iReady ? '✓ 준비완료' : 'START') + ` ${readyN}/${n}` + (n < 4 ? '·최소4' : '');
     }
 
     function fmt(ms) { const s = Math.max(0, Math.ceil(ms / 1000)); return s >= 60 ? Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0') : s + '초'; }
@@ -192,24 +240,24 @@
       mzWelcome(m) { myId = m.me.id; players = m.players; phase = m.phase; day = m.day; endsAt = m.endsAt; renderBanner(); renderRoster(); onPhase(); },
       mzPlayers(m) { players = m.players; renderRoster(); updateStartBtn(); },
       mzPhase(m) { phase = m.phase; day = m.day; endsAt = m.endsAt; if (phase !== 'day_vote') votes = null; if (phase === 'lobby' || phase === 'night' || phase === 'gameover') accusedId = null; renderBanner(); renderRoster(); onPhase(); },
-      mzRole(m) { myRole = m.role; myMates = m.mates || []; showRole(m); chat.addLog('사회자(Claude)', '당신의 역할: ' + m.roleKo + (myMates.length ? ' · 동료: ' + myMates.map(x => x.name).join(', ') : '')); },
-      mzSys(m) { chat.addLog('사회자(Claude)', m.text); },
-      mzChat(m) { chat.say(whoOf(m.id), (CH[m.channel] || '') + m.text); chat.addLog((CH[m.channel] || '') + m.name, m.text); },
+      mzRole(m) { myRole = m.role; myMates = m.mates || []; showRole(m); gameInfo('🪪 당신의 역할: ' + m.roleKo + (myMates.length ? ' · 동료: ' + myMates.map(x => x.name).join(', ') : '')); },
+      mzSys(m) { hostSay(m.text); },
+      mzChat(m) { addChat((CH[m.channel] || '') + m.name, m.text, m.channel, m.id); },
       mzMorning(m) {
-        if (m.deaths && m.deaths.length) for (const d of m.deaths) chat.addLog('사회자(Claude)', `☀️ 아침 — ${d.roleKo ? `${d.name} (${d.roleKo})` : d.name} 님이 밤 사이 사망했습니다.`);
-        else chat.addLog('사회자(Claude)', '☀️ 아침 — 조용한 밤이었습니다. 아무도 죽지 않았습니다.');
+        if (m.deaths && m.deaths.length) for (const d of m.deaths) hostSay(`☀️ 아침이 밝았습니다. ${d.roleKo ? `${d.name} (${d.roleKo})` : d.name} 님이 밤 사이 사망했습니다.`);
+        else hostSay('☀️ 아침이 밝았습니다. 다행히 아무도 죽지 않았습니다.');
       },
-      mzInvestigate(m) { chat.addLog('사회자(Claude)', `🔎 조사 결과: ${m.targetName} 님은 ${m.isMafia ? '마피아입니다!' : '마피아가 아닙니다.'}`); },
-      mzHeal(m) { chat.addLog('사회자(Claude)', `💉 ${m.targetName} 님을 치료 대상으로 지정했습니다.`); },
-      mzMafiaPick(m) { chat.addLog('사회자(Claude)', `🔪 ${m.by} → ${m.targetName} 지목`); },
+      mzInvestigate(m) { gameInfo(`🔎 조사 결과: ${m.targetName} 님은 ${m.isMafia ? '마피아입니다!' : '마피아가 아닙니다.'}`); },
+      mzHeal(m) { gameInfo(`💉 ${m.targetName} 님을 치료 대상으로 지정했습니다.`); },
+      mzMafiaPick(m) { gameInfo(`🔪 ${m.by} → ${m.targetName} 지목`); },
       mzNightProg(m) { if (phase === 'night') progEl.textContent = `지목 ${m.acted}/${m.total}`; },
       mzVoteUpd(m) { votes = m.tally; renderRoster(); progEl.textContent = `투표 ${m.voted}/${m.total}`; },
       mzConfirmUpd(m) { progEl.textContent = `찬반 ${m.yes + m.no}/${m.total} (찬성 ${m.yes}·반대 ${m.no})`; },
       mzSkipUpd(m) { skipBtn.textContent = `건너뛰기 ▶ ${m.count}/${m.need}`; if (phase !== 'night') progEl.textContent = `건너뛰기 ${m.count}/${m.need}`; },
-      mzDefense(m) { accusedId = m.id; chat.addLog('사회자(Claude)', `⚖️ ${m.name} 님이 최다 득표 — 최후 변론.`); },
+      mzDefense(m) { accusedId = m.id; hostSay(`⚖️ ${m.name} 님이 최다 득표되었습니다. 최후 변론을 들어보죠.`); },
       mzConfirmStart(m) { accusedId = m.id; },
-      mzExecuted(m) { chat.addLog('사회자(Claude)', `🪢 ${m.roleKo ? `${m.name} (${m.roleKo})` : m.name} 님이 처형되었습니다.`); accusedId = null; },
-      mzGameover(m) { chat.addLog('사회자(Claude)', `🏁 게임 종료 — ${m.winnerKo} 진영 승리!`); showGameover(m); myRole = null; myMates = []; }
+      mzExecuted(m) { hostSay(`🪢 ${m.roleKo ? `${m.name} (${m.roleKo})` : m.name} 님이 처형되었습니다.`); accusedId = null; },
+      mzGameover(m) { hostSay(`🏁 게임 종료! ${m.winnerKo} 진영의 승리입니다.`); showGameover(m); myRole = null; myMates = []; }
     };
     // 페이즈 바뀔 때 progress 초기화
     const _mzPhase = handlers.mzPhase;

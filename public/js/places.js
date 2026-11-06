@@ -369,7 +369,7 @@
   // ---------- 마피아존 ----------
 
   // 오징어게임풍 아레나. 왼쪽 문으로 통로와 이어진다. 가운데 ○△□, 위쪽 핑크 벽에 사회자 단상.
-  const MZ = { wallH: 36, host: { x: 160, y: 52 } };
+  const MZ = { wallH: 36, host: { x: 160, y: 58 } };
 
   function ringSym(g, cx, cy, r, th, col, floor) { disc(g, cx, cy, r, col, col); disc(g, cx, cy, r - th, floor, floor); }
   function boxSym(g, cx, cy, s, th, col, floor) { const h = s / 2; rect(g, cx - h, cy - h, s, s, col); rect(g, cx - h + th, cy - h + th, s - th * 2, s - th * 2, floor); }
@@ -378,16 +378,19 @@
     fill(topY, hgt, col); fill(topY + th + 1, hgt - th * 2, floor);
   }
 
-  // 정장 차림 사회자(Claude) NPC — rect 로만 그린 작은 도트 인물
+  // 정장 차림 사회자(Claude) NPC — 다른 캐릭터(drawPerson)와 같은 비율로 또렷하게. (x,y)는 발끝.
   function hostNpc(g, x, y) {
-    rect(g, x - 5, y + 1, 10, 2, 'rgba(0,0,0,0.22)');       // 그림자
-    rect(g, x - 3, y - 3, 3, 3, '#20242e'); rect(g, x + 1, y - 3, 3, 3, '#20242e'); // 바지
-    rect(g, x - 4, y - 9, 8, 6, '#242a36');                  // 재킷
-    rect(g, x - 1, y - 9, 2, 6, '#e8e8e8');                  // 흰 셔츠
-    rect(g, x - 1, y - 8, 2, 2, '#b23a3a');                  // 넥타이
-    rect(g, x - 4, y - 15, 8, 6, '#f2c39b');                 // 얼굴
-    rect(g, x - 4, y - 16, 8, 3, '#141414');                 // 머리
-    rect(g, x - 2, y - 12, 1, 1, '#2a1a14'); rect(g, x + 1, y - 12, 1, 1, '#2a1a14'); // 눈
+    rect(g, x - 4, y - 1, 8, 2, 'rgba(0,0,0,0.2)');          // 그림자
+    rect(g, x - 3, y - 4, 3, 4, '#20242e'); rect(g, x + 1, y - 4, 3, 4, '#20242e'); // 정장 바지
+    rect(g, x - 4, y - 10, 8, 6, '#242a36');                 // 재킷
+    rect(g, x - 1, y - 10, 2, 6, '#e8e8e8');                 // 흰 셔츠
+    rect(g, x - 1, y - 9, 2, 2, '#b23a3a');                  // 넥타이
+    rect(g, x - 5, y - 9, 1, 4, '#242a36'); rect(g, x + 4, y - 9, 1, 4, '#242a36'); // 팔
+    const hy = y - 17;
+    rect(g, x - 4, hy, 8, 7, '#f2c39b');                     // 얼굴(7px)
+    rect(g, x - 4, hy, 8, 2, '#141414');                     // 머리 위
+    rect(g, x - 4, hy + 2, 1, 2, '#141414'); rect(g, x + 3, hy + 2, 1, 2, '#141414'); // 옆머리
+    rect(g, x - 2, hy + 4, 1, 1, '#2a1a14'); rect(g, x + 1, hy + 4, 1, 1, '#2a1a14'); // 눈
   }
 
   const FLOOR = '#c7a977';
