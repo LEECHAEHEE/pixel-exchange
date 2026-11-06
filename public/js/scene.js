@@ -655,6 +655,7 @@
 
   function hits(x, y) {
     if (!area.walk.some(r => inside(r, x, y))) return true;
+    if (area.confine && !area.confine(x, y)) return true;
     for (const b of area.blocks) {
       if (x + 3 > b.x && x - 3 < b.x + b.w && y > b.y && y - 2 < b.y + b.h) return true;
     }
@@ -943,7 +944,8 @@
       if (keys.has('up')) dy -= 1;
       if (keys.has('down')) dy += 1;
 
-      const step = (player.rider ? RIDE_SPEED : PLAYER_SPEED) * dt;
+      // 장소가 걸음 빠르기를 바꿀 수 있다(풋살장에서 공을 가진 사람은 조금 느리다)
+      const step = (player.rider ? RIDE_SPEED : PLAYER_SPEED) * (area.speed ? area.speed() : 1) * dt;
 
       if (!dx && !dy && player.route) {
         const t = player.route[0];
@@ -965,6 +967,8 @@
         dy = ty / dist;
       }
       if (!dx && !dy) { animate(player, false, dt); return; }
+      // 바라보는 8방향(0 오른쪽부터 시계 방향 45°씩). 그림은 4방향이지만 풋살 드리블·패스·슛은 대각선도 쓴다.
+      player.face = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
 
       const len = Math.hypot(dx, dy);
       const moved = moveBy(player, dx / len * step, dy / len * step);
@@ -1148,12 +1152,17 @@
       keys.clear();
     }
 
+    const FACE_OF_DIR = { right: 0, down: 2, left: 4, up: 6 };
+
     // 서버가 정한 자리로 순간이동(풋살 킥오프 대형). 걷던 길은 버린다.
     function teleport(x, y, dir) {
       if (!player.active || player.seat) return;
       player.x = x;
       player.y = y;
-      if (dir) player.dir = dir;
+      if (dir) {
+        player.dir = dir;
+        player.face = FACE_OF_DIR[dir];
+      }
       player.route = null;
       player.moving = false;
     }
@@ -1256,12 +1265,13 @@
         remotes.delete(id);
       },
 
-      move(id, x, y, dir, moving) {
+      move(id, x, y, dir, moving, face) {
         const r = remotes.get(id);
         if (!r || r.seat) return;
         r.tx = x;
         r.ty = y;
         r.dir = dir;
+        r.face = face == null ? null : face;
         r.moving = !!moving;
       },
 

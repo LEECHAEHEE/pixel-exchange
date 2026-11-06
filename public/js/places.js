@@ -484,6 +484,9 @@
     goal: { y0: 85, y1: 121, depth: 12 },
     center: { x: 160, y: 103 },
     door: { y: 28, h: 12 },
+    // 경기 중 관전자가 머무는 아래쪽 벤치 줄(경기장 선 아래)과 그 끝의 관전석 출입문
+    bench: { y0: 170, y1: 176 },
+    benchDoor: { x: 284, w: 22 },
     board: { x: 112, y: 2, w: 96, h: 19 }
   };
   const FC = {
@@ -610,6 +613,13 @@
     rect(g, W - 7, FS.standH, 1, H - FS.standH, PAL.outline);
     rect(g, 0, H - 3, W, 3, FC.wall);
     rect(g, 0, H - 4, W, 1, PAL.outline);
+    // 아래쪽 관전석 출입문(사거리로 이어진다)
+    const BD = FS.benchDoor;
+    rect(g, BD.x, H - 4, BD.w, 4, FC.apron);
+    rect(g, BD.x - 2, H - 5, 2, 5, FC.door);
+    rect(g, BD.x + BD.w, H - 5, 2, 5, FC.door);
+    rect(g, BD.x - 3, H - 5, 1, 5, FC.doorDark);
+    rect(g, BD.x + BD.w + 2, H - 5, 1, 5, FC.doorDark);
     const D = FS.door;
     rect(g, W - 7, D.y, 7, D.h, FC.apron);
     rect(g, W - 7, D.y - 2, 7, 2, FC.door);
@@ -693,8 +703,13 @@
       { x: 208, y: 169, w: 60, h: 5 }
     ],
     exits: [
-      { x: W - 3, y: FS.door.y, w: 3, h: FS.door.h, to: 'crossroad', spawn: { x: 16, y: 90, dir: 'right' } }
+      { x: W - 3, y: FS.door.y, w: 3, h: FS.door.h, to: 'crossroad', spawn: { x: 16, y: 90, dir: 'right' } },
+      { x: FS.benchDoor.x, y: H - 4, w: FS.benchDoor.w, h: 4, to: 'crossroad', spawn: { x: 16, y: 90, dir: 'right' } }
     ],
+    // 경기 중 관전자는 벤치 줄 밖으로 못 나간다(futsal.js 가 정한다)
+    confine: (x, y) => (PX.futsal ? PX.futsal.allowed(x, y) : true),
+    // 공을 가진 사람은 90% 빠르기로 걷는다(futsal.js 가 정한다)
+    speed: () => (PX.futsal ? PX.futsal.speed() : 1),
     decorate: decorateFutsal,
     // 팀에 들어간 사람은 이 장소에서만 팀 유니폼으로 그린다(futsal.js 가 정한다)
     dress: (who, look) => (PX.futsal ? PX.futsal.dress(who, look) : null)

@@ -91,6 +91,7 @@ function createRoom({ market, race, accounts }) {
       u.x = x;
       u.y = y;
       u.dir = dir;
+      u.face = dir === 'left' ? 4 : 0;
       u.moving = false;
       dirty.add(u.id);
     }
@@ -207,6 +208,8 @@ function createRoom({ market, race, accounts }) {
         u.x = x;
         u.y = y;
         if (DIRS.has(msg.dir)) u.dir = msg.dir;
+        // 바라보는 8방향(0 오른쪽부터 시계 방향 45°씩). 풋살장 드리블·패스·슛 방향에 쓴다.
+        if (Number.isInteger(msg.f) && msg.f >= 0 && msg.f < 8) u.face = msg.f;
         u.moving = !!msg.moving;
         dirty.add(u.id);
         return;
@@ -364,7 +367,10 @@ function createRoom({ market, race, accounts }) {
       const u = users.get(id);
       if (!u) continue;
       if (!byMap.has(u.map)) byMap.set(u.map, []);
-      byMap.get(u.map).push([u.id, Math.round(u.x * 10) / 10, Math.round(u.y * 10) / 10, u.dir, u.moving ? 1 : 0]);
+      const row = [u.id, Math.round(u.x * 10) / 10, Math.round(u.y * 10) / 10, u.dir, u.moving ? 1 : 0];
+      // 풋살장에서는 대각선 드리블을 그리도록 8방향도 싣는다
+      if (u.map === 'futsal' && u.face != null) row.push(u.face);
+      byMap.get(u.map).push(row);
     }
     dirty.clear();
     for (const [map, list] of byMap) sendMap(map, { t: 'moves', list });

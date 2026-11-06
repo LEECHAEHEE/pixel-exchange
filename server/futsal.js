@@ -38,8 +38,20 @@ const KICK_LOCK_MS = 300, STEAL_GAP_MS = 800, STOLEN_LOCK_MS = 450, TACKLE_GAP_M
 const PASS_MIN = 90, PASS_MAX = 230, PASS_FORWARD = 150;
 const SHOT_MIN = 140, SHOT_MAX = 340;
 // 드리블 중 공 자리(발 기준). public/js/futsal.js 와 맞춰야 한다
-const DRIBBLE = { right: [6, 0], left: [-6, 0], up: [0, -5], down: [0, 4] };
 const DIRV = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+// 바라보는 8방향(u.face: 0 오른쪽부터 시계 방향 45°씩). 대각선 키로 대각선 드리블·패스·슛.
+const FACE = Array.from({ length: 8 }, (_, i) => [Math.round(Math.cos(i * Math.PI / 4) * 1e4) / 1e4, Math.round(Math.sin(i * Math.PI / 4) * 1e4) / 1e4]);
+function setFace(u, f) {
+  if (Number.isInteger(f) && f >= 0 && f < 8) u.face = f;
+}
+function faceOf(u) {
+  return u.face != null && FACE[u.face] ? FACE[u.face] : DIRV[u.dir] || [1, 0];
+}
+// 드리블 공 자리: 바라보는 쪽으로 가로 6px, 위 5px·아래 4px 앞(public/js/futsal.js 와 같다)
+function dribbleOffset(u) {
+  const [fx, fy] = faceOf(u);
+  return [fx * 6, fy * (fy < 0 ? 5 : 4)];
+}
 const TEAMS = ['red', 'blue'];
 const TEAM_KO = { red: '레드', blue: '블루' };
 
@@ -321,7 +333,7 @@ function createFutsal({ send, sendMap, place }) {
   function dribble() {
     const u = members.get(ball.owner);
     if (!onTeam(u)) { ball.owner = null; ball.dirty = true; return; }
-    const [ox, oy] = DRIBBLE[u.dir] || [0, 0];
+    const [ox, oy] = dribbleOffset(u);
     const [x, y] = clampToField(u.x + ox, u.y + oy);
     // 경기장 밖으로 멀리 나가면 공은 그 자리에 남는다
     if (Math.hypot(u.x - x, u.y - y) > LOSE_R) {
@@ -426,7 +438,7 @@ function createFutsal({ send, sendMap, place }) {
   // 바라보는 쪽에 있는 같은 팀 사람에게 자동으로 조준. 없으면 앞으로 적당히 찬다.
   function pass(u) {
     if (!canAct(u) || ball.owner !== u.id) return;
-    const [fx, fy] = DIRV[u.dir] || [1, 0];
+    const [fx, fy] = faceOf(u);
     let best = null, bestScore = Infinity;
     for (const m of teamList(u.fs.team)) {
       if (m === u || m.map !== 'futsal') continue;
@@ -440,7 +452,7 @@ function createFutsal({ send, sendMap, place }) {
     }
     if (!best) { kick(u, fx * PASS_FORWARD, fy * PASS_FORWARD); return; }
     // 걷고 있는 사람에게는 가는 쪽으로 조금 앞을 보고 찬다
-    const [lx, ly] = best.moving ? (DIRV[best.dir] || [0, 0]) : [0, 0];
+    const [lx, ly] = best.moving ? faceOf(best) : [0, 0];
     const tx = best.x + lx * 10, ty = best.y + ly * 10;
     const dx = tx - ball.x, dy = ty - ball.y;
     const dist = Math.hypot(dx, dy) || 1;
@@ -453,7 +465,7 @@ function createFutsal({ send, sendMap, place }) {
     if (!canAct(u) || ball.owner !== u.id) return;
     p = clamp(Number(p) || 0, 0, 1);
     const speed = SHOT_MIN + (SHOT_MAX - SHOT_MIN) * p;
-    const [fx, fy] = DIRV[u.dir] || [1, 0];
+    const [fx, fy] = faceOf(u);
     const gx = u.fs.team === 'red' ? FIELD.x1 + 4 : FIELD.x0 - 4;
     const gy = clamp(ball.y + fy * 24, GOAL.y0 + 5, GOAL.y1 - 5);
     let tx = gx - ball.x, ty = gy - ball.y;
@@ -461,7 +473,8 @@ function createFutsal({ send, sendMap, place }) {
     tx /= tl; ty /= tl;
     let dx = fx, dy = fy;
     // 골대 반대쪽을 보고 차면 보정 없이 그대로(걷어내기)
-    if (fx * tx + fy * ty > -0.2) { dx = fx * 0.3 + tx * 0.7; dy = fy * 0.3 + ty * 0.7; }
+    // 대각선으로 겨눈 쪽이 보이도록 바라보는 방향을 조금 더 따른다
+    if (fx * tx + fy * ty > -0.2) { dx = fx * 0.45 + tx * 0.55; dy = fy * 0.45 + ty * 0.55; }
     const noise = (Math.random() * 2 - 1) * (0.03 + Math.max(0, p - 0.6) * 0.35);
     const a = Math.atan2(dy, dx) + noise;
     kick(u, Math.cos(a) * speed, Math.sin(a) * speed);
@@ -540,8 +553,9 @@ function createFutsal({ send, sendMap, place }) {
     switch (msg.t) {
       case 'fsTeam': return setTeam(u, msg.team);
       case 'fsStart': return start(u);
-      case 'fsPass': return pass(u);
-      case 'fsShoot': return shoot(u, msg.p);
+      // 누르는 순간의 8방향을 함께 받아 0.1초 위치 소식보다 먼저 반영한다
+      case 'fsPass': setFace(u, msg.f); return pass(u);
+      case 'fsShoot': setFace(u, msg.f); return shoot(u, msg.p);
       case 'fsTackle': return tackle(u);
     }
   }

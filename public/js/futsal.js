@@ -10,7 +10,13 @@
   // server/futsal.js 와 맞춰야 한다
   const FRICTION = 1.4;
   const BALL_R = 2;
-  const DRIBBLE = { right: [6, 0], left: [-6, 0], up: [0, -5], down: [0, 4] };
+  // 드리블 공 자리: 바라보는 8방향(face, 0 오른쪽부터 시계 방향 45°씩)으로 가로 6px, 위 5px·아래 4px 앞.
+  // server/futsal.js 의 dribbleOffset 과 같다. face 가 없으면 4방향(dir)으로.
+  const DIRV = { right: [1, 0], down: [0, 1], left: [-1, 0], up: [0, -1] };
+  function dribbleOffset(p) {
+    const [fx, fy] = p.face != null ? [Math.cos(p.face * Math.PI / 4), Math.sin(p.face * Math.PI / 4)] : DIRV[p.dir] || [0, 0];
+    return [fx * 6, fy * (fy < 0 ? 5 : 4)];
+  }
   const TEAM_MAX = 5;
   const WIN_GOALS = 5;
   // D 를 이만큼 누르고 있으면 힘이 꽉 찬다
@@ -101,6 +107,25 @@
       return who === 'me' ? myTeam() : teamOf.get(who) || null;
     }
     const iHaveBall = () => !!ball.owner && whoOf(ball.owner) === 'me';
+    // 공을 가진 사람의 걸음 빠르기 배율. 수비가 따라붙어 뺏을 틈이 생긴다.
+    const DRIBBLE_SPEED = 0.9;
+    const speed = () => (inZone && phase === 'play' && iHaveBall() ? DRIBBLE_SPEED : 1);
+
+    // 경기 중(카운트다운·경기·골 세리머니)에는 팀에 없는 사람은 아래쪽 벤치 줄에서만 관전한다
+    const inMatch = () => phase === 'countdown' || phase === 'play' || phase === 'goal';
+    const watching = () => inZone && inMatch() && !myTeam();
+    function allowed(x, y) {
+      return !watching() || y >= FS.bench.y0;
+    }
+    // 경기장 안에 서 있던 관전자(경기 시작·경기 중 입장)는 벤치 줄 빈 곳으로 옮긴다
+    function toBench() {
+      const me = scene.where('me');
+      if (!me || !watching() || me.y >= FS.bench.y0) return;
+      // 레드 벤치 앞·블루 벤치 앞·가운데 중 한 곳(겹치지 않게 조금씩 비켜 선다)
+      const spots = [82, 238, 160, 60, 104, 216, 260, 130, 190];
+      const x = spots[Math.floor(Math.random() * spots.length)] + Math.round(Math.random() * 10 - 5);
+      scene.teleport(x, FS.bench.y1, 'up');
+    }
 
     // 다른 창이 열려 있거나 입장 전이면 S·D 를 받지 않는다
     function blocked() {
@@ -163,11 +188,12 @@
     // 매 프레임: 공 자리를 서버 값에서 앞으로 내다보고(마찰 반영) 부드럽게 따라간다
     function update(dt) {
       if (!inZone) return;
+      toBench();
       const now = performance.now();
       let tx, ty;
       const owner = ball.owner ? scene.where(whoOf(ball.owner)) : null;
       if (owner) {
-        const [ox, oy] = DRIBBLE[owner.dir] || [0, 0];
+        const [ox, oy] = dribbleOffset(owner);
         [tx, ty] = clampField(owner.x + ox, owner.y + oy);
       } else {
         // 다음 소식까지 길어야 0.25초만 내다본다
@@ -324,14 +350,14 @@
       e.preventDefault();
       if (e.repeat || !myTeam() || phase !== 'play') return;
       if (!iHaveBall()) { send({ t: 'fsTackle' }); return; }
-      if (e.code === 'KeyS') send({ t: 'fsPass' });
+      if (e.code === 'KeyS') send({ t: 'fsPass', f: scene.player.face });
       else charging = performance.now();
     });
     window.addEventListener('keyup', (e) => {
       if (e.code !== 'KeyD' || !charging) return;
       const p = chargeP();
       charging = null;
-      if (inZone && iHaveBall()) send({ t: 'fsShoot', p: Math.round(p * 100) / 100 });
+      if (inZone && iHaveBall()) send({ t: 'fsShoot', p: Math.round(p * 100) / 100, f: scene.player.face });
     });
     window.addEventListener('blur', () => { charging = null; });
 
@@ -428,7 +454,7 @@
       fsTk(m) { puffs.push({ who: whoOf(m.id), until: performance.now() + 300 }); }
     };
 
-    return { handlers, apply, setMap, update, view, dress, prompt, get inZone() { return inZone; } };
+    return { handlers, apply, setMap, update, view, dress, prompt, allowed, speed, get inZone() { return inZone; } };
   }
 
   PX.createFutsal = createFutsal;

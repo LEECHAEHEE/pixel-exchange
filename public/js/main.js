@@ -187,7 +187,7 @@
     'futsal:team': 'START 로 경기 시작 · 경기 중 방향키 이동, S 패스, D 슛',
     'futsal:play': '방향키 이동 · 공에 닿으면 드리블 · 공이 없을 때 S·D 는 태클',
     'futsal:ball': 'S 패스 · D 누르고 있다 떼면 슛(오래 누를수록 세게) · 방향키 드리블',
-    'futsal:watch': '관전 중 · 경기가 끝나면 팀을 골라 참가할 수 있어요',
+    'futsal:watch': '벤치에서 관전 중 · 경기가 끝나면 팀 참가 가능 · 오른쪽 아래 문으로 나가기',
     'racetrack:free': '1~5 키·전광판 클릭으로 우승마 투표 · [Esc] 조작 방법',
     'racetrack:steal': 'Space 로 말 훔쳐 타기 · 관리인에게 잡히면 뺏긴다! 경마장 밖으로 달아나자',
     'racetrack:return': 'Space 로 말 돌려놓기',
@@ -313,8 +313,8 @@
         refreshOnline();
       },
       moves(msg) {
-        for (const [id, x, y, dir, moving] of msg.list) {
-          if (id !== myId) scene.net.move(id, x, y, dir, moving);
+        for (const [id, x, y, dir, moving, face] of msg.list) {
+          if (id !== myId) scene.net.move(id, x, y, dir, moving, face);
         }
       },
       sit(msg) { if (msg.id !== myId) scene.net.sit(msg.id, msg.seat); },
@@ -381,10 +381,12 @@
   setInterval(() => {
     const p = scene.player;
     if (!p.active || p.seat) return;
-    const key = `${Math.round(p.x * 10)},${Math.round(p.y * 10)},${p.dir},${p.moving ? 1 : 0}`;
+    // 풋살장에서는 대각선 드리블을 위해 바라보는 8방향(f)도 보낸다
+    const f = scene.map === 'futsal' && p.face != null ? p.face : undefined;
+    const key = `${Math.round(p.x * 10)},${Math.round(p.y * 10)},${p.dir},${p.moving ? 1 : 0},${f}`;
     if (key === sent) return;
     sent = key;
-    net.send({ t: 'move', x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10, dir: p.dir, moving: p.moving });
+    net.send({ t: 'move', x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10, dir: p.dir, moving: p.moving, f });
   }, 100);
 
   // 탭이 숨겨졌거나 X 로 가렸으면 화면이 안 보이므로 서버에 알려 위치·강아지·시세를 받지 않는다.
