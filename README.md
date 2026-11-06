@@ -73,7 +73,6 @@ New → Blueprint 로 `render.yaml` 을 그대로 쓴다. 빌드는 `npm ci`, �
 | 감정표현 | C 로 채팅 입력줄 자리에 방향키 판을 열고, ↑ 인사(고개를 숙이는 꾸벅 인사, 약 1.4초). 다른 방향은 준비 중. C·Esc 로 닫기 | 판의 버튼 클릭 |
 | 채팅 기록 | M 으로 `닉네임 : 내용` 목록을 열고 닫음. 서버가 켜진 뒤의 최근 100건(서버 메모리, 서버를 끄면 사라짐). 입장 전 채팅도 보임 | 없음 |
 | 화면 가리기 | X 로 화면 전체를 까맣게(`[화면 가리기]` 표시), 다시 X 로 원래대로. 입력칸에서 글자 칠 때는 동작 안 함 | 없음 |
-| 문서 화면 | ] 로 `public/work/order.html`(저장소에 올리지 않는 로컬 파일)을 화면 전체에 띄우고, 다시 ] 로 원래대로. 파일이 없으면 X 와 같은 검은 화면 | 없음 |
 
 닉네임을 `경마장주인` 으로 입장하면 말을 탄 채로 다닌다. 말은 옷과 따로 그리므로 아이템을 갈아입어도 그대로다.
 
@@ -203,12 +202,10 @@ New → Blueprint 로 `render.yaml` 을 그대로 쓴다. 빌드는 `npm ci`, �
 | ← 서버 | `sit` / `stand` / `sitDenied` | 의자 점유 변화, 내 앉기 거절 |
 | ← 서버 | `go` | `{ id, map, x, y, dir }` 다른 사람이 장소를 옮김 |
 | ← 서버 | `chat` | `{ id, text }` |
-| ← 서버 | `symbols` | `{ symbols: [{ code, name, base? }] }` 종목 순서·이름·기준가(전일 종가) |
-| ← 서버 | `ticks` | `{ ticks: [[code, price], ...], meta? }` 줄인 틱. 거래량·대금이 있으면 `[code, price, volume, amount]`. 등락폭·등락률은 화면이 기준가로 계산한다. 틱에서 처음 알게 된 기준가·이름은 `meta: { code: { base?, name? } }` 로 한 번 온다 |
-| ← 서버 | `indices` / `ticker` / `status` | 지수(값·등락은 소수 둘째 자리, 거래량·대금은 정수) / 뉴스 띠 / 연결 상태 |
+| ← 서버 | `symbols` / `ticks` / `indices` / `ticker` / `status` | 시세 |
 
 시세 메시지(`symbols`·`ticks`·`indices`·`ticker`·`status`)는 객장을 보는 사람에게만 간다. 스냅샷(`welcome.market`·`sync.market`)은
-`{ symbols, meta, ticks, indices, ticker, status }` 이고 틱 모양은 위와 같다. 데모 시세는 객장을 보는 사람이 없으면 쉰다.
+`{ symbols, ticks, indices, ticker, status }` 이다. 데모 시세는 객장을 보는 사람이 없으면 쉰다.
 
 ## 상점
 
@@ -316,7 +313,7 @@ MARKET_WS_URL=wss://example/realtime MARKET_API_KEY=... npm start
 공급원이 쓰는 메서드는 화면 전광판과 모양이 같다.
 
 ```js
-market.setSymbols([{ code: '005930', name: '삼성전자', base: 70400 }, ...]);   // 표시 순서. base(기준가)가 없으면 틱의 change 로 구한다
+market.setSymbols([{ code: '005930', name: '삼성전자' }, ...]);   // 표시 순서
 market.push({ code: '005930', price: 71200, change: 800, rate: 1.14 });   // 배열도 가능
 // volume(거래량)은 만주, amount(거래대금)는 억원 단위. 없으면 그 줄은 숨겨진다.
 market.setIndices([{ name: 'KOSPI', value: 2650.12, change: 12.3, rate: 0.47, volume: 33856, amount: 49531 }]);
@@ -333,7 +330,6 @@ REST 처럼 주기적으로 조회하는 API 라면 `setInterval` 안에서 조�
 | 틱 합치기 | 서버는 0.2초, 화면은 한 프레임 단위로 같은 종목의 마지막 값만 반영 |
 | 위치 묶어 보내기 | 0.1초마다 바뀐 사람만 장소별로 한 메시지로. 직렬화도 한 번만 |
 | 보는 사람에게만 | 위치는 같은 장소, 강아지·시세는 객장을 보는 사람에게만. 숨긴 탭·가림 화면은 빼고 돌아오면 `sync` |
-| 틱 줄이기 | `[code, price]` 만 보내고 등락은 화면이 기준가로 계산 |
 | 화면 파일 캐시 | 파일·gzip 본을 메모리에 두고 ETag 가 같으면 304 |
 | 바뀐 글자만 쓰기 | 칸마다 이전 문자열을 기억해 같으면 건드리지 않음 |
 | 깜빡임 일괄 해제 | 셀마다 타이머를 만들지 않고 100ms 주기 한 번에 정리 |

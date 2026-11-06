@@ -8,80 +8,24 @@
   // 캐릭터·채팅·상점보다 먼저 키를 받아야 해서 다른 키 처리보다 가장 먼저 등록한다.
   // 한/영이 한글이어도(ㅌ) 키 위치(code)로 판단한다. 입력칸이 아니면 글자 조합은 신경 쓸 필요가 없다.
   const coverEl = document.getElementById('cover');
-  // ] 키로 띄우는 업무 문서 화면. 문서는 public/work/order.html(회사 문서라 저장소에 올리지 않는다).
-  // 문서가 없으면(배포 서버 등) X 와 같은 검은 가림 화면으로 대신한다.
-  const docEl = document.getElementById('cover-doc');
-  const DOC_URL = 'work/order.html#order';
-  const gameTitle = document.title;
-  let docReady = null;   // null: 아직 모름, true/false: 문서가 있는지
-  const covered = () => !coverEl.hidden || !docEl.hidden;
   // 가림 화면을 켜고 끌 때 서버에 알린다(idle). 서버 연결은 아래에서 만들고 이 자리를 채운다.
   let onCoverChange = () => {};
-
-  function hideGame() {
-    PX.scene && PX.scene.releaseKeys();
-    if (document.activeElement && document.activeElement !== docEl) document.activeElement.blur();
-  }
-
-  function toggleCover() {
-    coverEl.hidden = !coverEl.hidden;
-    if (!coverEl.hidden) hideGame();
-    onCoverChange();
-  }
-
-  function showDoc(on) {
-    docEl.hidden = !on;
-    document.title = on ? (docEl.contentDocument && docEl.contentDocument.title) || gameTitle : gameTitle;
-    if (on) {
-      hideGame();
-      docEl.focus();
-    } else {
-      window.focus();
-    }
-    onCoverChange();
-  }
-
-  function toggleDoc() {
-    if (!docEl.hidden) return showDoc(false);
-    if (docReady === false) return toggleCover();
-    if (docReady === true) return showDoc(true);
-    // 처음 한 번만 문서가 있는지 확인하고 불러 둔다(이후에는 스크롤 위치까지 그대로 다시 보인다)
-    fetch(DOC_URL.split('#')[0], { method: 'HEAD' }).then((r) => {
-      docReady = r.ok;
-      if (!r.ok) return toggleCover();
-      docEl.addEventListener('load', () => {
-        const d = docEl.contentDocument;
-        document.title = d.title || gameTitle;
-        // 문서 안에 포커스가 있을 때도 ] 로 돌아온다
-        d.addEventListener('keydown', (e) => {
-          if (e.code === 'BracketRight' && !e.repeat) {
-            e.preventDefault();
-            showDoc(false);
-          }
-        });
-      }, { once: true });
-      docEl.src = DOC_URL;
-      showDoc(true);
-    }, () => { docReady = false; toggleCover(); });
-  }
-
   window.addEventListener('keydown', (e) => {
     const t = e.target;
     const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
-    if (e.code === 'KeyX' && !typing && !e.repeat && docEl.hidden) {
-      toggleCover();
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      return;
-    }
-    if (e.code === 'BracketRight' && !typing && !e.repeat && coverEl.hidden) {
-      toggleDoc();
+    if (e.code === 'KeyX' && !typing && !e.repeat) {
+      coverEl.hidden = !coverEl.hidden;
+      if (!coverEl.hidden) {
+        PX.scene && PX.scene.releaseKeys();
+        if (document.activeElement) document.activeElement.blur();
+      }
+      onCoverChange();
       e.preventDefault();
       e.stopImmediatePropagation();
       return;
     }
     // 가려져 있는 동안에는 다른 키가 캐릭터·채팅·상점으로 가지 않게 한다
-    if (covered()) {
+    if (!coverEl.hidden) {
       e.preventDefault();
       e.stopImmediatePropagation();
     }
@@ -284,8 +228,6 @@
 
   function applyMarket(m) {
     if (m.symbols && m.symbols.length) board.setSymbols(m.symbols);
-    // 기준가를 먼저 알아야 줄인 틱의 등락을 계산할 수 있다
-    if (m.meta) board.setMeta(m.meta);
     if (m.ticks && m.ticks.length) board.push(m.ticks);
     if (m.indices && m.indices.length) board.setIndices(m.indices);
     if (m.ticker !== undefined) board.setTicker(m.ticker);
@@ -362,10 +304,7 @@
       raceVote(msg) { race.setMine(msg.horse, msg.reason); },
 
       symbols(msg) { board.setSymbols(msg.symbols); },
-      ticks(msg) {
-        if (msg.meta) board.setMeta(msg.meta);
-        board.push(msg.ticks);
-      },
+      ticks(msg) { board.push(msg.ticks); },
       indices(msg) { board.setIndices(msg.indices); },
       ticker(msg) { board.setTicker(msg.text); },
       status(msg) { board.setStatus(msg.text, msg.live); }
@@ -401,7 +340,7 @@
   // 다시 보이면 서버가 sync 로 지금 모습을 한 번에 보내 준다.
   let idleSent = false;
   function reportIdle() {
-    const on = document.hidden || covered();
+    const on = document.hidden || !coverEl.hidden;
     if (on === idleSent) return;
     idleSent = on;
     net.send({ t: 'idle', on });
