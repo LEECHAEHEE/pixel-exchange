@@ -128,13 +128,19 @@
     rect(g, CARPET.x + 2, CARPET.y + 2, CARPET.w - 4, CARPET.h - 4, PAL.carpet);
     disc(g, CARPET.x + CARPET.w / 2, CARPET.y + CARPET.h / 2, 5, PAL.signEdge, PAL.carpetEdge);
 
-    // 왼쪽·오른쪽 복도는 공사 중
-    for (const bx of [22, W - 30]) {
+    // 왼쪽 복도는 공사 중(오른쪽은 마피아존으로 열려 있다)
+    for (const bx of [22]) {
       barrier(g, bx, HALL_Y + 2, HALL_H - 4, true);
-      barrier(g, bx + 8 * (bx < W / 2 ? -1 : 1), HALL_Y + 2, HALL_H - 4, true);
-      cone(g, bx + 3 + 12 * (bx < W / 2 ? 1 : -1), HALL_Y + 10);
-      cone(g, bx + 3 + 12 * (bx < W / 2 ? 1 : -1), HALL_Y + HALL_H - 2);
+      barrier(g, bx - 8, HALL_Y + 2, HALL_H - 4, true);
+      cone(g, bx + 15, HALL_Y + 10);
+      cone(g, bx + 15, HALL_Y + HALL_H - 2);
     }
+    // 오른쪽: 마피아존 입구(붉은 카펫이 이어지는 통로). 핑크 문틀.
+    carpetRun(g, W - 30, HALL_Y + 20, 30, HALL_H - 40, false);
+    rect(g, W - 7, HALL_Y, 7, HALL_H, '#c21e63');
+    rect(g, W - 9, HALL_Y, 2, HALL_H, PAL.outline);
+    rect(g, W - 7, HALL_Y, 7, 3, '#a3134f');
+    rect(g, W - 7, HALL_Y + HALL_H - 3, 7, 3, '#a3134f');
 
     // 복도 모서리 화분
     for (const [x, y] of [[HALL_X + 8, HALL_Y - 2], [HALL_X + HALL_W - 8, HALL_Y - 2], [HALL_X + 8, H - 2], [HALL_X + HALL_W - 8, H - 2]]) plant(g, x, y);
@@ -149,7 +155,6 @@
     ],
     blocks: [
       { x: 0, y: HALL_Y, w: 34, h: HALL_H },
-      { x: W - 34, y: HALL_Y, w: 34, h: HALL_H },
       // 위쪽 화분 두 개
       { x: HALL_X + 2, y: HALL_Y - 10, w: 12, h: 10 },
       { x: HALL_X + HALL_W - 14, y: HALL_Y - 10, w: 12, h: 10 },
@@ -159,7 +164,8 @@
     ],
     exits: [
       { x: HALL_X, y: 0, w: HALL_W, h: 2, to: 'exchange', spawn: { x: 160, y: 168, dir: 'up' } },
-      { x: HALL_X, y: H - 3, w: HALL_W, h: 3, to: 'racetrack', spawn: { x: 160, y: 38, dir: 'down' } }
+      { x: HALL_X, y: H - 3, w: HALL_W, h: 3, to: 'racetrack', spawn: { x: 160, y: 38, dir: 'down' } },
+      { x: W - 3, y: HALL_Y + 18, w: 3, h: HALL_H - 20, to: 'mafiazone', spawn: { x: 24, y: 96, dir: 'right' } }
     ]
   };
 
@@ -360,5 +366,80 @@
     decorate
   };
 
-  PX.places = { crossroad, racetrack };
+  // ---------- 마피아존 ----------
+
+  // 오징어게임풍 아레나. 왼쪽 문으로 통로와 이어진다. 가운데 ○△□, 위쪽 핑크 벽에 사회자 단상.
+  const MZ = { wallH: 36, host: { x: 160, y: 52 } };
+
+  function ringSym(g, cx, cy, r, th, col, floor) { disc(g, cx, cy, r, col, col); disc(g, cx, cy, r - th, floor, floor); }
+  function boxSym(g, cx, cy, s, th, col, floor) { const h = s / 2; rect(g, cx - h, cy - h, s, s, col); rect(g, cx - h + th, cy - h + th, s - th * 2, s - th * 2, floor); }
+  function triSym(g, cx, topY, hgt, th, col, floor) {
+    const fill = (ty, hh, c) => { for (let i = 0; i <= hh; i++) { const half = Math.round((i / hh) * hh * 0.95); rect(g, cx - half, ty + i, half * 2 + 1, 1, c); } };
+    fill(topY, hgt, col); fill(topY + th + 1, hgt - th * 2, floor);
+  }
+
+  // 정장 차림 사회자(Claude) NPC — rect 로만 그린 작은 도트 인물
+  function hostNpc(g, x, y) {
+    rect(g, x - 5, y + 1, 10, 2, 'rgba(0,0,0,0.22)');       // 그림자
+    rect(g, x - 3, y - 3, 3, 3, '#20242e'); rect(g, x + 1, y - 3, 3, 3, '#20242e'); // 바지
+    rect(g, x - 4, y - 9, 8, 6, '#242a36');                  // 재킷
+    rect(g, x - 1, y - 9, 2, 6, '#e8e8e8');                  // 흰 셔츠
+    rect(g, x - 1, y - 8, 2, 2, '#b23a3a');                  // 넥타이
+    rect(g, x - 4, y - 15, 8, 6, '#f2c39b');                 // 얼굴
+    rect(g, x - 4, y - 16, 8, 3, '#141414');                 // 머리
+    rect(g, x - 2, y - 12, 1, 1, '#2a1a14'); rect(g, x + 1, y - 12, 1, 1, '#2a1a14'); // 눈
+  }
+
+  const FLOOR = '#c7a977';
+
+  function paintMafiazone() {
+    const { c, g } = makeCanvas(W, H);
+    // 바닥(모래)
+    rect(g, 0, 0, W, H, FLOOR);
+    for (let y = MZ.wallH; y < H; y += 8) rect(g, 0, y, W, 1, '#bb9c6b');
+    // 위쪽 핑크 벽
+    rect(g, 0, 0, W, MZ.wallH, '#c21e63');
+    rect(g, 0, 0, W, 8, '#a3134f');
+    for (let x = 0; x < W; x += 20) rect(g, x, 0, 1, MZ.wallH, '#ad1657');
+    rect(g, 0, MZ.wallH - 3, W, 3, '#7a0f3c');
+    rect(g, 0, MZ.wallH - 1, W, 1, PAL.outline);
+    // 사회자 단상 + NPC
+    rect(g, MZ.host.x - 12, MZ.host.y + 1, 24, 4, '#3a2a1a');
+    rect(g, MZ.host.x - 12, MZ.host.y + 1, 24, 1, '#5a4330');
+    hostNpc(g, MZ.host.x, MZ.host.y);
+    // 벽 현판(글씨는 DOM)
+    rect(g, W / 2 - 46, 6, 92, 2, '#f1cf5a');
+    rect(g, W / 2 - 46, 24, 92, 2, '#f1cf5a');
+    // 경기장 테두리
+    rect(g, 8, MZ.wallH + 4, W - 16, 2, '#ede3cf');
+    rect(g, 8, H - 6, W - 16, 2, '#ede3cf');
+    rect(g, 8, MZ.wallH + 4, 2, H - MZ.wallH - 10, '#ede3cf');
+    rect(g, W - 10, MZ.wallH + 4, 2, H - MZ.wallH - 10, '#ede3cf');
+    // 바닥 심볼 ○ △ □ (핑크)
+    const SC = '#d9397e', sy = 120;
+    ringSym(g, 70, sy, 22, 5, SC, FLOOR);
+    triSym(g, 160, sy - 20, 40, 5, SC, FLOOR);
+    boxSym(g, 250, sy, 38, 5, SC, FLOOR);
+    // 왼쪽 입구(통로로 이어지는 붉은 카펫)
+    rect(g, 0, 84, 16, 28, PAL.carpetEdge);
+    rect(g, 0, 88, 14, 20, PAL.carpet);
+    return c;
+  }
+
+  const mafiazone = {
+    paint: paintMafiazone,
+    walk: [
+      { x: 12, y: MZ.wallH + 8, w: W - 24, h: H - MZ.wallH - 16 },
+      { x: 0, y: 88, w: 16, h: 20 }
+    ],
+    blocks: [
+      // 사회자 단상 근처는 막는다
+      { x: MZ.host.x - 12, y: MZ.host.y - 4, w: 24, h: 10 }
+    ],
+    exits: [
+      { x: 0, y: 86, w: 3, h: 24, to: 'crossroad', spawn: { x: W - 16, y: 90, dir: 'left' } }
+    ]
+  };
+
+  PX.places = { crossroad, racetrack, mafiazone };
 })();

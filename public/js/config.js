@@ -19,9 +19,12 @@ PX.config = {
     { map: 'crossroad', x: 180, y: 8, w: 70, h: 9, text: '↑ 도트증권 객장' },
     { map: 'crossroad', x: 188, y: 160, w: 52, h: 9, text: '경마장 ↓' },
     { map: 'crossroad', x: 6, y: 120, w: 40, h: 8, text: '공사 중' },
-    { map: 'crossroad', x: 274, y: 120, w: 40, h: 8, text: '공사 중' },
+    { map: 'crossroad', x: 250, y: 120, w: 64, h: 9, text: '마피아존 →' },
     { map: 'racetrack', x: 120, y: 2, w: 80, h: 9, text: '도트 경마장', cls: 'gate' },
-    { map: 'racetrack', x: 178, y: 20, w: 40, h: 8, text: '↑ 사거리' }
+    { map: 'racetrack', x: 178, y: 20, w: 40, h: 8, text: '↑ 사거리' },
+    { map: 'mafiazone', x: 110, y: 9, w: 100, h: 9, text: '마피아 게임장', cls: 'gate' },
+    { map: 'mafiazone', x: 116, y: 62, w: 88, h: 8, text: '사회자(Claude)' },
+    { map: 'mafiazone', x: 14, y: 74, w: 44, h: 8, text: '← 통로' }
   ],
 
   // 종목 칸. 글자 크기(px)를 화면 배율에 맞춰 min~max 사이로 정하고,

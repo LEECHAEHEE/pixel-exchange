@@ -1,0 +1,94 @@
+/* 마피아존 UI. scene.map==='mafiazone' 일 때만 #mz-ui 가 보인다. */
+
+/* 존에서는 증권 전광판·간판을 숨긴다 */
+.stage[data-map='mafiazone'] #board,
+.stage[data-map='mafiazone'] .sign { display: none; }
+
+:root {
+  --mz-gold: #f1cf5a; --mz-panel: #2a1f19; --mz-line: #5e3a22;
+  --mz-mafia: #ff4b4b; --mz-citizen: #4ba3ff; --mz-font: 'Galmuri11', 'DungGeunMo', monospace;
+}
+
+#mz-ui { position: fixed; inset: 0; z-index: 40; pointer-events: none; font-family: var(--mz-font); }
+#mz-ui[hidden] { display: none; }
+#mz-ui > * { pointer-events: auto; }
+
+/* 상단 배너 + 타이머 + 진행수 */
+#mz-top {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: baseline; gap: 10px; padding: 4px 14px;
+  background: rgba(10, 7, 5, 0.72); border: 2px solid var(--mz-line); white-space: nowrap;
+}
+#mz-banner { color: var(--mz-gold); font-size: 15px; }
+#mz-banner[data-phase='night'] { color: #9fb0ff; }
+#mz-banner[data-phase='gameover'] { color: var(--mz-mafia); }
+#mz-timer { color: #9fe0a8; font-size: 13px; }
+#mz-progress { color: #ffd27a; font-size: 13px; }
+#mz-progress:empty { display: none; }
+
+/* 생존 현황판 */
+#mz-roster {
+  position: absolute; top: 48px; right: 12px; width: 150px; max-height: 60vh; overflow-y: auto;
+  padding: 6px 8px; font-size: 12px; background: rgba(10, 7, 5, 0.72); border: 2px solid var(--mz-line); color: #f4ead8;
+}
+.mz-rhead { color: var(--mz-gold); border-bottom: 1px solid var(--mz-line); padding-bottom: 3px; margin-bottom: 3px; }
+.mz-prow { display: flex; align-items: center; gap: 4px; padding: 1px 0; }
+.mz-pname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mz-prow.dead { color: #9a9a9a; text-decoration: line-through; }
+.mz-prow.spec { color: #8a7a68; }
+.mz-dead { color: var(--mz-mafia); } .mz-vote { color: var(--mz-gold); } .mz-ready { color: #6fe08a; } .mz-tag { color: #8a7a68; }
+
+/* START / 건너뛰기 버튼 */
+#mz-start {
+  position: absolute; left: 50%; bottom: 76px; transform: translateX(-50%);
+  padding: 10px 26px; font: 16px var(--mz-font); color: #1b1410; background: var(--mz-gold);
+  border: 3px solid #2a1d18; box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.4); cursor: pointer; white-space: nowrap;
+}
+#mz-start:hover { background: #ffe07a; }
+#mz-start.on { color: #fffaf0; background: #4fa05a; border-color: #2a4d2f; }
+#mz-start[hidden], #mz-skip[hidden] { display: none; }
+#mz-skip {
+  position: absolute; right: 12px; bottom: 44px; padding: 6px 14px;
+  font: 13px var(--mz-font); color: #1b1410; background: var(--mz-gold); border: 0; cursor: pointer;
+}
+#mz-skip:hover { background: #ffe07a; }
+
+/* 선택 대화창 */
+.mz-dialog {
+  position: absolute; left: 50%; bottom: 44px; transform: translateX(-50%);
+  width: min(calc(100% - 24px), 460px); padding: 10px 14px 12px;
+  color: #2a1d18; background: #fffaf0; border: 3px solid #2a1d18;
+  box-shadow: inset 0 0 0 3px #e9dcc0, 4px 4px 0 rgba(0, 0, 0, 0.35); font-size: 14px;
+}
+.mz-dialog[hidden] { display: none; }
+.mz-dlg-name { display: inline-block; margin-bottom: 6px; padding: 1px 8px; color: #fffaf0; background: #6b3f22; }
+.mz-dlg-text { margin-bottom: 8px; line-height: 1.4; }
+.mz-dlg-opts { display: flex; gap: 6px 18px; flex-wrap: wrap; }
+.mz-dlg-opts button { font: inherit; padding: 2px 6px 2px 18px; color: inherit; background: none; border: 0; cursor: pointer; position: relative; }
+.mz-dlg-opts button.sel { background: #f3e3c0; }
+.mz-dlg-opts button.sel::before { content: '▶'; position: absolute; left: 4px; top: 50%; transform: translateY(-50%); font-size: 0.8em; }
+
+/* 모달(역할/결과) */
+.mz-modal { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: rgba(10, 7, 5, 0.66); }
+.mz-modal[hidden] { display: none; }
+.mz-box { width: min(420px, calc(100% - 32px)); max-height: calc(100% - 32px); overflow-y: auto; color: #f4ead8; background: var(--mz-panel); border: 4px solid var(--mz-line); box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.4); }
+.mz-box-head { padding: 10px 14px; border-bottom: 2px solid var(--mz-line); color: var(--mz-gold); font-size: 17px; }
+.mz-role { padding: 16px; }
+.mz-role-name { font-size: 22px; color: var(--mz-gold); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.mz-team { font-size: 11px; padding: 1px 6px; vertical-align: 2px; }
+.mz-team-mafia { color: #1b1410; background: var(--mz-mafia); }
+.mz-team-citizen { color: #1b1410; background: var(--mz-citizen); }
+.mz-role-desc { margin-top: 8px; font-size: 13px; line-height: 1.5; color: #d8cbb6; }
+.mz-mates { margin-top: 8px; font-size: 13px; color: var(--mz-mafia); }
+.mz-ok { margin: 12px 14px; padding: 6px 18px; font: 14px var(--mz-font); color: #1b1410; background: var(--mz-gold); border: 0; cursor: pointer; }
+.mz-ok:hover { background: #ffe07a; }
+.mz-win { margin: 14px; padding: 10px; text-align: center; font-size: 20px; border: 2px solid; }
+.mz-win-mafia { color: var(--mz-mafia); border-color: var(--mz-mafia); }
+.mz-win-citizen { color: var(--mz-citizen); border-color: var(--mz-citizen); }
+.mz-result { padding: 0 14px 10px; }
+.mz-rrow { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; border-bottom: 1px solid #3d2a1f; }
+.mz-rrow.dead { opacity: 0.55; }
+.mz-rrole { color: var(--mz-gold); }
+.mz-rrow.mz-role-mafia .mz-rrole { color: var(--mz-mafia); }
+
+@media (max-width: 560px) { #mz-roster { width: 118px; font-size: 11px; } #mz-start { bottom: 70px; padding: 8px 18px; font-size: 14px; } }
