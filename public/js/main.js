@@ -136,11 +136,40 @@
   place(coinHintEl, C.coinHint);
   stage.insertBefore(coinHintEl, boardEl);
 
+  // 코인 거래소 왼쪽 끝에 다가가면 뜨는 '← 국장' 안내. 금화처럼 빙글빙글 도는 태극 문양과 함께 안내 전체가 둥둥 뜬다.
+  const krHintEl = document.createElement('div');
+  krHintEl.className = 'coin-hint kr-hint';
+  krHintEl.hidden = true;
+  krHintEl.innerHTML = '<canvas width="9" height="9"></canvas><span>← 국장</span>';
+  {
+    // 9x9 태극 문양: 금화와 같은 동그라미 테두리 안에 위 빨강·아래 파랑.
+    // 왼쪽은 빨강이 아래로, 오른쪽은 파랑이 위로 파고들어 S 자로 맞물린다(가운데 기준 점대칭).
+    const fg = krHintEl.firstChild.getContext('2d');
+    const dot = (x, y, w, h, c) => { fg.fillStyle = c; fg.fillRect(x, y, w, h); };
+    const RED = '#d8283a', BLUE = '#1f4fb0', EDGE = '#2a1d18';
+    dot(2, 0, 5, 9, EDGE); dot(0, 2, 9, 5, EDGE); dot(1, 1, 7, 7, EDGE);
+    dot(2, 1, 5, 1, RED);
+    dot(1, 2, 7, 1, RED);
+    dot(1, 3, 4, 1, RED); dot(5, 3, 3, 1, BLUE);
+    dot(1, 4, 3, 1, RED); dot(4, 4, 4, 1, BLUE);
+    dot(1, 5, 3, 1, RED); dot(4, 5, 4, 1, BLUE);
+    dot(1, 6, 7, 1, BLUE);
+    dot(2, 7, 5, 1, BLUE);
+  }
+  place(krHintEl, C.krHint);
+  stage.insertBefore(krHintEl, boardEl);
+
+  // 방 끝 가까이 갔을 때만 띄우는 안내: 객장 오른쪽 끝 → 코인, 코인 거래소 왼쪽 끝 → 국장
+  const edgeHints = [
+    { el: coinHintEl, map: 'exchange', near: (p) => p.x > C.coinHint.nearX },
+    { el: krHintEl, map: 'coin', near: (p) => p.x < C.krHint.nearX }
+  ];
+
   // 장소에 딸린 DOM 오버레이. 장소를 옮기며 화면이 밀릴 때 같은 양만큼 함께 민다.
   const mapEls = [
     { el: boardEl, map: 'exchange' },
     { el: document.querySelector('.sign'), map: 'exchange' },
-    { el: coinHintEl, map: 'exchange' },
+    ...edgeHints.map(({ el, map }) => ({ el, map })),
     { el: coinBoardEl, map: 'coin' },
     ...labelEls.map(el => ({ el, map: el.dataset.map }))
   ];
@@ -240,7 +269,7 @@
     talk: 'Space 로 상점 주인에게 말 걸기',
     seated: 'Space 또는 ↓ ← → 로 일어나기',
     'crossroad:free': '↑ 객장 · ↓ 경마장 · ← 풋살장 · → 마피아존 · [Esc] 조작 방법',
-    'coin:free': '← 객장 · [Esc] 조작 방법',
+    'coin:free': '← 국장 · [Esc] 조작 방법',
     // 풋살장은 팀·공 상태로 고른다(futsal.prompt)
     'futsal:lobby': '팀을 골라 참가하세요 · 풋살장에서는 방향키로만 이동 · [Esc] 조작 방법',
     'futsal:team': 'START 로 경기 시작 · 경기 중 방향키 이동, S 패스, D 슛',
@@ -273,10 +302,13 @@
     race.update();
 
     showMap(scene.map);
-    // 객장에서 오른쪽 끝에 다가갔을 때만(앉아 있지 않을 때) '코인 →' 안내를 띄운다. 밀리는 중에는 떠 있던 그대로 같이 밀린다.
-    const nearCoin = scene.slide ? !coinHintEl.hidden
-      : scene.map === 'exchange' && !scene.seatedView && scene.player.active && scene.player.x > C.coinHint.nearX;
-    if (coinHintEl.hidden === nearCoin) coinHintEl.hidden = !nearCoin;
+    // 방 끝에 다가갔을 때만(앉아 있지 않을 때) 옆방 안내를 띄운다. 밀리는 중에는 떠 있던 그대로 같이 밀린다.
+    if (!scene.slide) {
+      for (const h of edgeHints) {
+        const show = scene.map === h.map && !scene.seatedView && scene.player.active && h.near(scene.player);
+        if (h.el.hidden === show) h.el.hidden = !show;
+      }
+    }
     mafia.setMap(scene.map);
     const state = scene.map === 'exchange' ? scene.prompt()
       : scene.map === 'futsal' ? 'futsal:' + futsal.prompt()
