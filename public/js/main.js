@@ -439,17 +439,18 @@
   chat.onSend = (text) => net.send({ t: 'chat', text });
   race.onVote = (horse) => net.send({ t: 'vote', horse });
 
-  // 내 위치는 0.1초마다, 바뀌었을 때만 보낸다
+  // 내 위치는 0.1초마다, 바뀌었을 때만 보낸다. 지금 장소(map)도 함께 실어, 연결이 잠깐 끊긴 사이
+  // 장소 이동(go)이 빠졌어도 서버가 내 장소를 바로잡게 한다.
   let sent = '';
   setInterval(() => {
     const p = scene.player;
     if (!p.active || p.seat) return;
     // 풋살장에서는 대각선 드리블을 위해 바라보는 8방향(f)도 보낸다
     const f = scene.map === 'futsal' && p.face != null ? p.face : undefined;
-    const key = `${Math.round(p.x * 10)},${Math.round(p.y * 10)},${p.dir},${p.moving ? 1 : 0},${f}`;
+    const key = `${scene.map},${Math.round(p.x * 10)},${Math.round(p.y * 10)},${p.dir},${p.moving ? 1 : 0},${f}`;
     if (key === sent) return;
     sent = key;
-    net.send({ t: 'move', x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10, dir: p.dir, moving: p.moving, f });
+    net.send({ t: 'move', map: scene.map, x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10, dir: p.dir, moving: p.moving, f });
   }, 100);
 
   // 탭이 숨겨졌거나 X 로 가렸으면 화면이 안 보이므로 서버에 알려 위치·강아지·시세를 받지 않는다.

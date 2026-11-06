@@ -195,6 +195,26 @@ function createRoom({ market, race, accounts }) {
     console.log(`[room] leave id=${u.id} users=${users.size}`);
   }
 
+  // 다른 장소로 옮긴다. go 메시지와, 위치(move)에 실려 온 장소가 서버가 아는 장소와 다를 때 쓴다.
+  function changeMap(u, map, x, y, dir) {
+    const prevMap = u.map;
+    u.map = map;
+    u.x = x;
+    u.y = y;
+    if (DIRS.has(dir)) u.dir = dir;
+    u.moving = false;
+    // 풋살장에는 말을 타고 들어갈 수 없다. 내리고 말은 마굿간으로 돌려보낸다.
+    if (u.map === 'futsal') stable.dismount(u, 'futsal');
+    broadcast({ t: 'go', id: u.id, map: u.map, x: u.x, y: u.y, dir: u.dir }, u.id);
+    // 마피아존 입장/퇴장 → 마피아 게임 참가/이탈
+    if (prevMap === 'mafiazone' && u.map !== 'mafiazone') mafia.leave(u);
+    if (u.map === 'mafiazone' && prevMap !== 'mafiazone') mafia.enter(u);
+    // 풋살장 입장/퇴장 → 관전자로 들어오고, 나가면 팀에서 빠진다
+    if (prevMap === 'futsal' && u.map !== 'futsal') futsal.leave(u);
+    if (u.map === 'futsal' && prevMap !== 'futsal') futsal.enter(u);
+    if (!u.idle) sendSync(u);
+  }
+
   function handle(u, msg) {
     switch (msg.t) {
       // 호스팅이 서버를 재우지 않게 하는 신호. 할 일은 없다.
@@ -205,6 +225,12 @@ function createRoom({ market, race, accounts }) {
         const x = clampNum(msg.x, BOUNDS.x0, BOUNDS.x1);
         const y = clampNum(msg.y, BOUNDS.y0, BOUNDS.y1);
         if (x === null || y === null) return;
+        // 화면은 위치마다 지금 장소를 함께 보낸다. 연결이 잠깐 끊긴 사이 go 가 빠졌으면 여기서 장소를 바로잡는다
+        // (안 그러면 다른 장소 좌표를 예전 장소에서 걷는 것으로 남들에게 보낸다).
+        if (typeof msg.map === 'string' && msg.map !== u.map && MAPS.has(msg.map)) {
+          changeMap(u, msg.map, x, y, msg.dir);
+          return;
+        }
         u.x = x;
         u.y = y;
         if (DIRS.has(msg.dir)) u.dir = msg.dir;
@@ -244,22 +270,7 @@ function createRoom({ market, race, accounts }) {
         const x = clampNum(msg.x, BOUNDS.x0, BOUNDS.x1);
         const y = clampNum(msg.y, BOUNDS.y0, BOUNDS.y1);
         if (x === null || y === null) return;
-        const prevMap = u.map;
-        u.map = msg.map;
-        u.x = x;
-        u.y = y;
-        if (DIRS.has(msg.dir)) u.dir = msg.dir;
-        u.moving = false;
-        // 풋살장에는 말을 타고 들어갈 수 없다. 내리고 말은 마굿간으로 돌려보낸다.
-        if (u.map === 'futsal') stable.dismount(u, 'futsal');
-        broadcast({ t: 'go', id: u.id, map: u.map, x: u.x, y: u.y, dir: u.dir }, u.id);
-        // 마피아존 입장/퇴장 → 마피아 게임 참가/이탈
-        if (prevMap === 'mafiazone' && u.map !== 'mafiazone') mafia.leave(u);
-        if (u.map === 'mafiazone' && prevMap !== 'mafiazone') mafia.enter(u);
-        // 풋살장 입장/퇴장 → 관전자로 들어오고, 나가면 팀에서 빠진다
-        if (prevMap === 'futsal' && u.map !== 'futsal') futsal.leave(u);
-        if (u.map === 'futsal' && prevMap !== 'futsal') futsal.enter(u);
-        if (!u.idle) sendSync(u);
+        changeMap(u, msg.map, x, y, msg.dir);
         return;
       }
       // 탭을 숨기거나 X 로 가렸다(on: true) / 다시 본다(on: false). 보는 동안 놓친 것은 sync 로 채운다.
