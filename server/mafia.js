@@ -320,12 +320,9 @@ function createMafia({ send }) {
   function handleChat(u, text) {
     if (!u.mz) return false;
     if (u.mz.spectator) { send(u, { t: 'mzSys', text: '관전 중에는 발언할 수 없습니다.' }); return true; }
+    // 밤에는 마피아 포함 '모두' 말할 수 없다
+    if (phase === 'night') { send(u, { t: 'mzSys', text: '🌙 밤에는 아무도 말할 수 없습니다.' }); return true; }
     if (!u.mz.alive) { bcast({ t: 'mzChat', channel: 'dead', id: u.id, name: u.name, text }, q => !q.mz.alive); return true; }
-    if (phase === 'night') {
-      if (u.mz.role === 'mafia') bcast({ t: 'mzChat', channel: 'mafia', id: u.id, name: u.name, text }, q => q.mz.alive && q.mz.role === 'mafia');
-      else send(u, { t: 'mzSys', text: '밤에는 발언할 수 없습니다.' });
-      return true;
-    }
     bcast({ t: 'mzChat', channel: 'public', id: u.id, name: u.name, text });
     return true;
   }

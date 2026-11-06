@@ -41,14 +41,14 @@
 /* START / 건너뛰기 버튼 */
 #mz-start {
   position: absolute; left: 50%; bottom: 76px; transform: translateX(-50%);
-  padding: 10px 26px; font: 16px var(--mz-font); color: #1b1410; background: var(--mz-gold);
+  padding: 4px 14px; font: 12px var(--mz-font); color: #1b1410; background: var(--mz-gold);
   border: 3px solid #2a1d18; box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.4); cursor: pointer; white-space: nowrap;
 }
 #mz-start:hover { background: #ffe07a; }
 #mz-start.on { color: #fffaf0; background: #4fa05a; border-color: #2a4d2f; }
 #mz-start[hidden], #mz-skip[hidden] { display: none; }
 #mz-skip {
-  position: absolute; right: 12px; bottom: 44px; padding: 6px 14px;
+  position: absolute; left: 50%; transform: translateX(-50%); bottom: 150px; padding: 6px 16px;
   font: 13px var(--mz-font); color: #1b1410; background: var(--mz-gold); border: 0; cursor: pointer;
 }
 #mz-skip:hover { background: #ffe07a; }
@@ -91,4 +91,36 @@
 .mz-rrole { color: var(--mz-gold); }
 .mz-rrow.mz-role-mafia .mz-rrole { color: var(--mz-mafia); }
 
-@media (max-width: 560px) { #mz-roster { width: 118px; font-size: 11px; } #mz-start { bottom: 70px; padding: 8px 18px; font-size: 14px; } }
+@media (max-width: 560px) { #mz-roster { width: 108px; font-size: 11px; } #mz-start { bottom: 70px; padding: 3px 10px; font-size: 11px; } }
+
+/* ---------- 마피아존 로그: 진행(우측) / 대화(좌측) ---------- */
+/* 입력 바(무대 아래 중앙)를 가리지 않도록 좌·우 측면에 세로로 둔다 */
+/* 플레이어 채팅은 기존 객장 채팅(좌측 하단 입력 + M 기록)을 그대로 쓴다.
+   '게임 진행'(사회자) 패널만 우측 하단에 둬서 채팅과 수평으로 보이게 한다. */
+.mz-log-panel { position: absolute; display: flex; flex-direction: column; width: min(280px, 30vw); height: min(300px, 42vh); pointer-events: auto; }
+.mz-game-panel { right: 10px; bottom: 14px; }   /* 게임 진행 — 오른쪽 하단(채팅과 수평) */
+.mz-log-panel > header {
+  padding: 3px 8px; font-size: 12px; color: var(--mz-gold);
+  background: #241a12; border: 2px solid var(--mz-line); border-bottom: 0;
+}
+.mz-log {
+  flex: 1; min-height: 60px; overflow-y: auto; padding: 5px 9px; font-size: 13px; line-height: 1.5;
+  background: rgba(10, 7, 5, 0.86); border: 2px solid var(--mz-line); color: #f4ead8;
+}
+.mz-logline { word-break: break-word; }
+.mz-logname { color: #c9b9a2; }
+.mz-host { color: #ffe6a6; }
+.mz-hostname { color: var(--mz-gold); font-weight: bold; }
+.mz-ch-dead { color: #9a9a9a; font-style: italic; }
+.mz-ch-dead .mz-logname { color: #9a9a9a; }
+.mz-ch-mafia .mz-logname { color: var(--mz-mafia); }
+.mz-ch-mafia { color: #ffb0b0; }
+
+/* 사회자 말풍선은 금색 테두리로 구분 */
+.bubble.mz-host-bubble { border-color: var(--mz-gold); }
+
+@media (max-width: 640px) {
+  .mz-log-panel { width: 46vw; height: 34vh; }
+  .mz-game-panel { right: 8px; bottom: 10px; }
+  .mz-log { font-size: 11px; }
+}

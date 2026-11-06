@@ -171,11 +171,24 @@
       if (!logEl.hidden) scrollLogToEnd();
     }
 
+    // 기록 창은 화면 하단이 아니라 '입력 바 바로 위'에 띄운다.
+    // 입력 바는 무대 아래 흐름에 있어 창 크기에 따라 위치가 달라지므로, 열 때와 창 크기가 바뀔 때 다시 잰다.
+    const bar = form.closest('.bar') || form.parentElement;
+    function placeLog() {
+      if (logEl.hidden || !bar) return;
+      const r = bar.getBoundingClientRect();
+      const gap = 8;
+      logEl.style.bottom = Math.max(8, Math.round(window.innerHeight - r.top + gap)) + 'px';
+      // 입력 바 위 공간을 넘지 않게 높이도 제한한다
+      logEl.style.maxHeight = Math.max(80, Math.min(window.innerHeight * 0.45, r.top - gap - 8)) + 'px';
+    }
+    window.addEventListener('resize', placeLog);
+
     window.addEventListener('keydown', (e) => {
       // 한/영이 한글이어도(ㅡ) 키 위치(code)로 판단한다
       if (e.code !== 'KeyM' || e.repeat || isTypingTarget(e.target)) return;
       logEl.hidden = !logEl.hidden;
-      if (!logEl.hidden) scrollLogToEnd();
+      if (!logEl.hidden) { placeLog(); scrollLogToEnd(); }
       e.preventDefault();
     });
 
