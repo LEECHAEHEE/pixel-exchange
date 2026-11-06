@@ -3,13 +3,13 @@
 //   emote.onEmote(type)   표현을 골랐을 때. main.js 가 내 캐릭터·서버에 전달한다.
 //   emote.open            판이 열려 있는지
 //
-// 지금은 ↑ 인사만 있다. 다른 방향은 EMOTES 에 채우면 판에 바로 나온다.
+// ↑ 인사, → 담배. 다른 방향은 EMOTES 에 채우면 판에 바로 나온다.
 (function () {
 
   const EMOTES = {
     up: { type: 'bow', name: '인사' },
     left: null,
-    right: null,
+    right: { type: 'smoke', name: '담배' },
     down: null
   };
   const ARROWS = { up: '↑', left: '←', right: '→', down: '↓' };

@@ -15,7 +15,7 @@ const BOUNDS = { x0: 0, y0: 0, x1: 319, y1: 179 };
 const MAPS = new Set(['exchange', 'crossroad', 'racetrack', 'mafiazone', 'futsal']);
 const DIRS = new Set(['up', 'down', 'left', 'right']);
 // 감정표현 종류. 화면(emote.js·scene.js)에 새 표현을 넣으면 여기도 추가한다.
-const EMOTES = new Set(['bow']);
+const EMOTES = new Set(['bow', 'smoke']);
 const EMOTE_GAP_MS = 500;
 
 const NAME_MAX = 12;
