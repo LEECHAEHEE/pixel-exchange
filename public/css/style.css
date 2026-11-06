@@ -113,9 +113,10 @@ body {
 /* 객장 오른쪽 끝의 '코인 →' 안내: 동전은 가로로 줄었다 늘며 도는 것처럼, 안내 전체는 위아래로 둥둥 */
 .coin-hint {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: calc(var(--ps) * 1.5px);
+  gap: calc(var(--ps) * 0.5px);
   color: #ffd76a;
   font-size: calc(var(--ps) * 4.5px);
   white-space: nowrap;
