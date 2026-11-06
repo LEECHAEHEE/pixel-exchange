@@ -1,4 +1,4 @@
-// 객장 밖 장소들: 빨간 복도 사거리와 경마장. 둘 다 위에서 내려다본 시점이다.
+// 객장 밖 장소들: 빨간 복도 사거리, 경마장, 마피아존, 풋살장. 모두 위에서 내려다본 시점이다.
 // 장소 하나는 { paint, walk, blocks, exits } 로 이루어지고 scene.js 가 객장과 같은 방식으로 다룬다.
 //   walk   발 위치가 이 사각형들 중 하나 안에 있어야 서 있을 수 있다
 //   blocks 발 주변이 겹치면 막힌다(바리케이드 등)
@@ -11,13 +11,14 @@
 
   const COL = {
     grass: '#6aa84f', grassDark: '#4f8a3a', grassLight: '#86c25e',
-    stripe1: '#e8792b', stripe2: '#f4f1e6', cone: '#f08a2b',
     wall: '#9a8f80', wallLine: '#7f7567', pillar: '#6f665a', banner: '#a8322e', bannerHi: '#d8b048',
     tile1: '#e9e5da', tile2: '#dcd6c8', grout: '#c8c0ae',
     rail: '#f4f1e6', railShade: '#bdb7a8',
     dirt: '#b0814f', dirtDark: '#9a6d40', dirtLight: '#c4955f',
     infield: '#74b35a', infieldStripe: '#6aa84f',
-    tote: '#14171c', toteFrame: '#3a3f48'
+    tote: '#14171c', toteFrame: '#3a3f48',
+    roof: '#8e3b2c', roofDark: '#6c2a1f', barn: '#b5763f', barnDark: '#8d5a2e', stallIn: '#3a2a1e', hay: '#d8b85a',
+    horse: '#8a5530', horseDark: '#5e3820', mane: '#2e1d14'
   };
 
   function grass(g, r, x0, y0, w, h, base) {
@@ -30,32 +31,10 @@
   }
 
 
-
-
-  // 주황·흰 줄무늬 가로대. vertical 이면 세로로 세운다.
-  function barrier(g, x, y, len, vertical) {
-    const w = vertical ? 6 : len;
-    const h = vertical ? len : 6;
-    rect(g, x - 1, y - 1, w + 2, h + 2, PAL.outline);
-    for (let i = 0; i < len; i++) {
-      const c = Math.floor(i / 5) % 2 ? COL.stripe2 : COL.stripe1;
-      if (vertical) rect(g, x, y + i, w, 1, c);
-      else rect(g, x + i, y, 1, h, c);
-    }
-  }
-
-  function cone(g, x, y) {
-    rect(g, x - 4, y - 1, 9, 2, PAL.outline);
-    rect(g, x - 2, y - 8, 5, 7, PAL.outline);
-    rect(g, x - 1, y - 7, 3, 6, COL.cone);
-    rect(g, x - 1, y - 4, 3, 1, COL.stripe2);
-    rect(g, x - 3, y - 1, 7, 1, COL.cone);
-  }
-
   // ---------- 사거리 ----------
 
   // 객장 가운데 빨간 복도가 이어지는 실내 복도 사거리.
-  // 세로 복도는 위로 객장, 아래로 경마장. 가로 복도 양쪽은 공사 중.
+  // 세로 복도는 위로 객장, 아래로 경마장. 가로 복도 왼쪽은 풋살장, 오른쪽은 마피아존.
   // 카펫 폭·위치는 객장 카펫(x 148~172)과 맞춰 이어져 보이게 한다.
   const HALL_X = 132, HALL_W = 56;   // 세로 복도(바닥)
   const HALL_Y = 62, HALL_H = 56;    // 가로 복도(바닥)
@@ -120,7 +99,7 @@
       rect(g, x, below ? y + h + 1 : y - 3, w, 2, PAL.floorShade);
     }
 
-    // 빨간 복도: 세로가 위아래로 끝까지, 가로는 공사 구간 앞까지
+    // 빨간 복도: 세로·가로 모두 끝까지
     carpetRun(g, 0, CARPET.y, W, CARPET.h, false);
     carpetRun(g, CARPET.x, 0, CARPET.w, H, true);
     // 만나는 곳은 테두리 없이 한 장으로
@@ -128,13 +107,13 @@
     rect(g, CARPET.x + 2, CARPET.y + 2, CARPET.w - 4, CARPET.h - 4, PAL.carpet);
     disc(g, CARPET.x + CARPET.w / 2, CARPET.y + CARPET.h / 2, 5, PAL.signEdge, PAL.carpetEdge);
 
-    // 왼쪽 복도는 공사 중(오른쪽은 마피아존으로 열려 있다)
-    for (const bx of [22]) {
-      barrier(g, bx, HALL_Y + 2, HALL_H - 4, true);
-      barrier(g, bx - 8, HALL_Y + 2, HALL_H - 4, true);
-      cone(g, bx + 15, HALL_Y + 10);
-      cone(g, bx + 15, HALL_Y + HALL_H - 2);
-    }
+    // 왼쪽: 풋살장 입구. 초록 문틀(경기장 잔디 색)과 문 앞 고무 매트.
+    rect(g, 0, HALL_Y, 7, HALL_H, '#2f8a45');
+    rect(g, 7, HALL_Y, 2, HALL_H, PAL.outline);
+    rect(g, 0, HALL_Y, 7, 3, '#226a34');
+    rect(g, 0, HALL_Y + HALL_H - 3, 7, 3, '#226a34');
+    rect(g, 9, HALL_Y + 22, 14, HALL_H - 44, '#3b4a3e');
+    for (let y = HALL_Y + 24; y < HALL_Y + HALL_H - 22; y += 3) rect(g, 10, y, 12, 1, '#55675a');
     // 오른쪽: 마피아존 입구(붉은 카펫이 이어지는 통로). 핑크 문틀.
     carpetRun(g, W - 30, HALL_Y + 20, 30, HALL_H - 40, false);
     rect(g, W - 7, HALL_Y, 7, HALL_H, '#c21e63');
@@ -154,7 +133,6 @@
       { x: HALL_X + 8, y: 0, w: HALL_W - 16, h: H - 1 }
     ],
     blocks: [
-      { x: 0, y: HALL_Y, w: 34, h: HALL_H },
       // 위쪽 화분 두 개
       { x: HALL_X + 2, y: HALL_Y - 10, w: 12, h: 10 },
       { x: HALL_X + HALL_W - 14, y: HALL_Y - 10, w: 12, h: 10 },
@@ -165,7 +143,9 @@
     exits: [
       { x: HALL_X, y: 0, w: HALL_W, h: 2, to: 'exchange', spawn: { x: 160, y: 168, dir: 'up' } },
       { x: HALL_X, y: H - 3, w: HALL_W, h: 3, to: 'racetrack', spawn: { x: 160, y: 38, dir: 'down' } },
-      { x: W - 3, y: HALL_Y + 18, w: 3, h: HALL_H - 20, to: 'mafiazone', spawn: { x: 24, y: 96, dir: 'right' } }
+      { x: W - 3, y: HALL_Y + 18, w: 3, h: HALL_H - 20, to: 'mafiazone', spawn: { x: 24, y: 96, dir: 'right' } },
+      // 풋살장 오른쪽 위 문으로 들어간다(관람 통로)
+      { x: 0, y: HALL_Y + 18, w: 3, h: HALL_H - 20, to: 'futsal', spawn: { x: 300, y: 33, dir: 'left' } }
     ]
   };
 
@@ -177,6 +157,8 @@
   const RAIL_Y = 60;
   const TRACK = { cx: 160, cy: 122, rx: 150, ry: 54, irx: 116, iry: 24 };
   const FINISH_X = 208;
+  // 광장 왼쪽 담장에 붙은 마굿간. 칸 가운데 x 와 칸 앞 줄은 server/stable.js 와 맞춰야 한다.
+  const STABLE = { x: 22, w: 76, y: 1, stallW: 20, stallX: [36, 60, 84], frontY: 28 };
 
   // ---------- 말 ----------
 
@@ -242,6 +224,9 @@
 
   // 장면이 매 프레임 부른다. 사람과 함께 깊이 순으로 그려지도록 목록에 넣는다.
   function decorate(list, g, t) {
+    // 마굿간 칸의 말(칸 문 뒤라 사람보다 먼저 그린다)
+    const st = PX.stable && PX.stable.stalls;
+    if (st) STABLE.stallX.forEach((cx, n) => { if (st[n]) list.push({ key: 0, draw: () => drawStallHorse(g, cx, t, n) }); });
     const race = PX.race;
     const pos = race && race.positions();
     if (!pos) return;
@@ -343,6 +328,8 @@
     rect(g, 120, 2, 80, 9, COL.banner);
     rect(g, 120, 2, 80, 1, COL.bannerHi);
 
+    paintStable(g);
+
     // 광장 양 끝 화분
     for (const x of [6, W - 20]) {
       rect(g, x + 1, 44, 12, 10, PAL.pot);
@@ -353,8 +340,54 @@
     return c;
   }
 
+  // 지붕 + 나무 벽 + 칸 셋. 칸 안의 말은 decorate 에서 그린다(훔쳐 가면 빈 칸).
+  function paintStable(g) {
+    const S = STABLE;
+    const bottom = S.frontY - 1;
+    rect(g, S.x - 1, S.y + 5, S.w + 2, bottom - S.y - 4, PAL.outline);
+    rect(g, S.x, S.y + 6, S.w, bottom - S.y - 6, COL.barn);
+    for (let x = S.x + 3; x < S.x + S.w; x += 4) rect(g, x, S.y + 6, 1, bottom - S.y - 6, COL.barnDark);
+    // 지붕
+    rect(g, S.x - 3, S.y - 1, S.w + 6, 8, PAL.outline);
+    for (let y = S.y; y < S.y + 6; y += 2) {
+      rect(g, S.x - 2, y, S.w + 4, 2, (y / 2) % 2 ? COL.roofDark : COL.roof);
+    }
+    // 칸: 어두운 안쪽, 바닥 짚, 반쪽 문(X 자 덧대기)
+    for (const cx of S.stallX) {
+      const x0 = cx - S.stallW / 2;
+      rect(g, x0 - 1, S.y + 8, S.stallW + 2, bottom - S.y - 8, PAL.outline);
+      rect(g, x0, S.y + 9, S.stallW, bottom - S.y - 9, COL.stallIn);
+      rect(g, x0, bottom - 3, S.stallW, 2, COL.hay);
+      const dy = bottom - 7;
+      rect(g, x0 - 1, dy - 1, S.stallW + 2, 8, PAL.outline);
+      rect(g, x0, dy, S.stallW, 6, COL.barn);
+      for (let i = 0; i < S.stallW; i++) {
+        const k = Math.round(i * 5 / (S.stallW - 1));
+        rect(g, x0 + i, dy + k, 1, 1, COL.barnDark);
+        rect(g, x0 + i, dy + 5 - k, 1, 1, COL.barnDark);
+      }
+      rect(g, x0, dy, S.stallW, 1, COL.barnDark);
+    }
+  }
+
+  // 칸 문 위로 고개를 내민 말(앞모습)
+  function drawStallHorse(g, cx, t, n) {
+    const top = STABLE.frontY - 1 - 7 - 9;
+    const nod = Math.floor(t * 0.7 + n * 1.3) % 4 === 0 ? 1 : 0;
+    const y = top + nod;
+    rect(g, cx - 4, y - 1, 8, 11 - nod, PAL.outline);
+    rect(g, cx - 3, y, 6, 10 - nod, COL.horse);
+    rect(g, cx - 3, y, 6, 2, COL.mane);
+    rect(g, cx - 5, y, 2, 2, PAL.outline);
+    rect(g, cx + 3, y, 2, 2, PAL.outline);
+    rect(g, cx - 2, y + 3, 1, 1, PAL.outline);
+    rect(g, cx + 1, y + 3, 1, 1, PAL.outline);
+    rect(g, cx - 2, y + 7 - nod, 4, 2, COL.horseDark);
+  }
+
   const racetrack = {
     paint: paintRacetrack,
+    stable: STABLE,
     walk: [
       { x: 22, y: WALL_H + 10, w: W - 44, h: RAIL_Y - WALL_H - 14 },
       { x: GATE_X + 4, y: 0, w: GATE_W - 8, h: WALL_H + 12 }
@@ -441,5 +474,231 @@
     ]
   };
 
-  PX.places = { crossroad, racetrack, mafiazone };
+  // ---------- 풋살장 ----------
+
+  // 위에서 내려다본 실내 풋살장. 위쪽은 관중석과 점수판, 오른쪽 위 문으로 사거리와 이어진다.
+  // 경기장 선·골대 입구·가운데는 server/futsal.js 의 FIELD·GOAL·CENTER 와 맞춰야 한다(공이 그 안에서 움직인다).
+  const FS = {
+    standH: 24,
+    field: { x0: 24, x1: 296, y0: 40, y1: 166 },
+    goal: { y0: 85, y1: 121, depth: 12 },
+    center: { x: 160, y: 103 },
+    door: { y: 28, h: 12 },
+    board: { x: 112, y: 2, w: 96, h: 19 }
+  };
+  const FC = {
+    wall: '#262b36', seat: '#3a4152', seatHi: '#4a5266', rail: '#d9dde4', railShade: '#8c94a3',
+    apron: '#4a5663', apronDot: '#55626f', turf: '#3f9a52', turfStripe: '#46a85a', line: '#f4f6ef',
+    net: '#1b232c', netLine: '#8d99a6', post: '#ffffff', screen: '#0d1015', frame: '#5b5f6a',
+    door: '#2f8a45', doorDark: '#226a34', red: '#d8343a', blue: '#2f6fd8', bench: '#6b4a2e'
+  };
+
+  // 관중석: 세 줄 좌석에 듬성듬성 앉은 관중(머리만 보인다)
+  function paintStands(g, r) {
+    rect(g, 0, 0, W, FS.standH, FC.wall);
+    for (let row = 0; row < 3; row++) {
+      const y = 3 + row * 6;
+      rect(g, 0, y + 3, W, 2, FC.seat);
+      rect(g, 0, y + 3, W, 1, FC.seatHi);
+      for (let x = 2; x < W - 2; x += 4) {
+        // 점수판 뒤에는 앉지 않는다
+        if (x > FS.board.x - 4 && x < FS.board.x + FS.board.w + 2) continue;
+        if (r() < 0.45) continue;
+        const shirt = r() < 0.5 ? FC.red : r() < 0.6 ? FC.blue : PX.pixel.PAL.chairArm;
+        rect(g, x, y + 2, 3, 2, shirt);
+        rect(g, x, y, 3, 2, r() < 0.7 ? PAL.skin : PAL.outline);
+        rect(g, x, y - 1, 3, 1, r() < 0.5 ? '#2a2220' : '#5b3a22');
+      }
+    }
+    // 난간
+    rect(g, 0, FS.standH - 2, W, 1, PAL.outline);
+    rect(g, 0, FS.standH - 1, W, 1, FC.rail);
+    rect(g, 0, FS.standH, W, 1, FC.railShade);
+    // 점수판 틀(글씨는 DOM)
+    const B = FS.board;
+    rect(g, B.x - 2, B.y - 1, B.w + 4, B.h + 2, PAL.outline);
+    rect(g, B.x - 1, B.y, B.w + 2, B.h, FC.frame);
+    rect(g, B.x, B.y + 1, B.w, B.h - 2, FC.screen);
+    // 왼쪽 현판 바탕(글씨는 DOM)
+    rect(g, 9, 6, 82, 12, PAL.outline);
+    rect(g, 10, 7, 80, 10, '#1f5a31');
+    rect(g, 10, 7, 80, 1, PAL.signEdge);
+  }
+
+  // 왼쪽(side -1)·오른쪽(side 1) 골대. 골망은 격자, 기둥·옆 테는 흰색.
+  function paintGoal(g, side) {
+    const F = FS.field, G = FS.goal;
+    const x0 = side < 0 ? F.x0 - G.depth : F.x1 + 1;
+    rect(g, x0 - 1, G.y0 - 2, G.depth + 2, G.y1 - G.y0 + 5, PAL.outline);
+    rect(g, x0, G.y0, G.depth, G.y1 - G.y0 + 1, FC.net);
+    for (let x = x0 + 1; x < x0 + G.depth; x += 3) rect(g, x, G.y0, 1, G.y1 - G.y0 + 1, FC.netLine);
+    for (let y = G.y0 + 2; y < G.y1; y += 3) rect(g, x0, y, G.depth, 1, FC.netLine);
+    // 옆 테와 뒤 테
+    rect(g, x0, G.y0 - 1, G.depth, 1, FC.post);
+    rect(g, x0, G.y1 + 1, G.depth, 1, FC.post);
+    rect(g, side < 0 ? x0 : x0 + G.depth - 1, G.y0 - 1, 1, G.y1 - G.y0 + 3, FC.post);
+    // 기둥(골라인 위)
+    const px = side < 0 ? F.x0 - 1 : F.x1;
+    for (const py of [G.y0 - 2, G.y1]) {
+      rect(g, px - 1, py - 1, 4, 4, PAL.outline);
+      rect(g, px, py, 2, 2, FC.post);
+    }
+  }
+
+  // 페널티 구역: 골대 입구에서 반지름 36 안쪽(골라인 앞으로 둥근 'D')
+  function penaltyArc(g, side) {
+    const F = FS.field, G = FS.goal, R = 36;
+    const lx = side < 0 ? F.x0 : F.x1;
+    for (let y = F.y0; y <= F.y1; y++) {
+      for (let x = F.x0; x <= F.x1; x++) {
+        const dx = Math.abs(x - lx);
+        const dy = y < G.y0 ? G.y0 - y : y > G.y1 ? y - G.y1 : 0;
+        const d = Math.hypot(dx, dy);
+        if (d >= R - 0.5 && d < R + 0.5 && (side < 0 ? x >= lx : x <= lx)) rect(g, x, y, 1, 1, FC.line);
+      }
+    }
+    rect(g, side < 0 ? lx + 60 : lx - 61, FS.center.y, 2, 1, FC.line);
+  }
+
+  function paintFutsal() {
+    const { c, g } = makeCanvas(W, H);
+    const r = rng(37);
+    const F = FS.field;
+
+    // 바닥(경기장 둘레)
+    rect(g, 0, 0, W, H, FC.apron);
+    for (let i = 0; i < 260; i++) rect(g, Math.floor(r() * W), FS.standH + Math.floor(r() * (H - FS.standH)), 1, 1, FC.apronDot);
+
+    // 인조잔디: 경기장 선 바깥으로 4px 여유, 세로 줄무늬
+    for (let x = F.x0 - 4; x <= F.x1 + 4; x++) {
+      rect(g, x, F.y0 - 4, 1, F.y1 - F.y0 + 9, Math.floor((x - F.x0) / 17) % 2 ? FC.turfStripe : FC.turf);
+    }
+    // 선: 테두리, 하프라인, 센터서클, 센터 점, 페널티 구역, 코너
+    rect(g, F.x0, F.y0, F.x1 - F.x0 + 1, 1, FC.line);
+    rect(g, F.x0, F.y1, F.x1 - F.x0 + 1, 1, FC.line);
+    rect(g, F.x0, F.y0, 1, F.y1 - F.y0 + 1, FC.line);
+    rect(g, F.x1, F.y0, 1, F.y1 - F.y0 + 1, FC.line);
+    rect(g, FS.center.x, F.y0, 1, F.y1 - F.y0 + 1, FC.line);
+    for (let a = 0; a < 360; a += 2) {
+      const t = a * Math.PI / 180;
+      rect(g, Math.round(FS.center.x + 20 * Math.cos(t)), Math.round(FS.center.y + 20 * Math.sin(t)), 1, 1, FC.line);
+    }
+    rect(g, FS.center.x - 1, FS.center.y - 1, 3, 3, FC.line);
+    penaltyArc(g, -1);
+    penaltyArc(g, 1);
+    for (const [cx, cy, sx, sy] of [[F.x0, F.y0, 1, 1], [F.x1, F.y0, -1, 1], [F.x0, F.y1, 1, -1], [F.x1, F.y1, -1, -1]]) {
+      rect(g, cx + sx * 3, cy + sy, 1, 1, FC.line);
+      rect(g, cx + sx * 2, cy + sy * 2, 1, 1, FC.line);
+      rect(g, cx + sx, cy + sy * 3, 1, 1, FC.line);
+    }
+
+    paintGoal(g, -1);
+    paintGoal(g, 1);
+
+    // 아래쪽 양 팀 벤치(왼쪽 레드, 오른쪽 블루)
+    for (const [bx, col] of [[52, FC.red], [208, FC.blue]]) {
+      rect(g, bx - 1, 169, 62, 6, PAL.outline);
+      rect(g, bx, 170, 60, 2, col);
+      rect(g, bx, 172, 60, 2, FC.bench);
+      for (const lx of [bx + 2, bx + 56]) rect(g, lx, 174, 2, 2, PAL.outline);
+    }
+
+    // 벽: 왼쪽·오른쪽·아래. 오른쪽 위에 사거리로 나가는 문.
+    rect(g, 0, FS.standH, 6, H - FS.standH, FC.wall);
+    rect(g, 6, FS.standH, 1, H - FS.standH, PAL.outline);
+    rect(g, W - 6, FS.standH, 6, H - FS.standH, FC.wall);
+    rect(g, W - 7, FS.standH, 1, H - FS.standH, PAL.outline);
+    rect(g, 0, H - 3, W, 3, FC.wall);
+    rect(g, 0, H - 4, W, 1, PAL.outline);
+    const D = FS.door;
+    rect(g, W - 7, D.y, 7, D.h, FC.apron);
+    rect(g, W - 7, D.y - 2, 7, 2, FC.door);
+    rect(g, W - 7, D.y + D.h, 7, 2, FC.door);
+    rect(g, W - 7, D.y - 3, 7, 1, FC.doorDark);
+    rect(g, W - 7, D.y + D.h + 2, 7, 1, FC.doorDark);
+    rect(g, W - 4, D.y + 4, 2, 1, PAL.signEdge);
+    rect(g, W - 3, D.y + 5, 1, 2, PAL.signEdge);
+    rect(g, W - 4, D.y + 7, 2, 1, PAL.signEdge);
+
+    paintStands(g, r);
+    return c;
+  }
+
+  // 공(5×5)과 그림자. (x, y) 는 공이 바닥에 닿는 점, roll 은 굴러간 거리(무늬가 돈다).
+  function drawBall(g, x, y, roll) {
+    rect(g, x - 2, y, 5, 1, 'rgba(0,0,0,0.35)');
+    rect(g, x - 1, y - 5, 3, 1, PAL.outline);
+    rect(g, x - 2, y - 4, 5, 3, PAL.outline);
+    rect(g, x - 1, y - 1, 3, 1, PAL.outline);
+    rect(g, x - 1, y - 4, 3, 3, '#ffffff');
+    if (Math.floor(roll / 3) % 2) rect(g, x, y - 3, 1, 1, PAL.outline);
+    else { rect(g, x - 1, y - 4, 1, 1, '#555a63'); rect(g, x + 1, y - 2, 1, 1, '#555a63'); }
+  }
+
+  // 공 가진 사람 발밑의 팀 색 고리
+  function drawRing(g, x, y, col) {
+    rect(g, x - 4, y - 2, 9, 1, col);
+    rect(g, x - 4, y + 1, 9, 1, col);
+    rect(g, x - 6, y - 1, 2, 2, col);
+    rect(g, x + 5, y - 1, 2, 2, col);
+  }
+
+  // 슛 힘 게이지(내 캐릭터 오른쪽 세로 막대). 끝까지 차면 빨갛게.
+  function drawGauge(g, x, y, p) {
+    const h = 14, fill = Math.round(h * p);
+    rect(g, x + 7, y - h - 3, 4, h + 2, PAL.outline);
+    rect(g, x + 8, y - h - 2, 2, h, '#3a3f48');
+    rect(g, x + 8, y - 2 - fill, 2, fill, p >= 1 ? '#ff5a4a' : p > 0.6 ? '#ffb84a' : '#7be07b');
+  }
+
+  // 태클할 때 발밑 먼지
+  function drawPuff(g, x, y, k) {
+    const s = 3 + Math.round(k * 4);
+    for (const [dx, dy] of [[-s, 0], [s, 0], [-s + 1, -2], [s - 1, -2], [0, 1]]) rect(g, x + dx, y + dy, 2, 1, 'rgba(230,230,220,0.8)');
+  }
+
+  function decorateFutsal(list, g, t) {
+    const v = PX.futsal && PX.futsal.view();
+    if (!v) return;
+    const ground = -1e6, top = 1e6;
+    if (v.ring) list.push({ key: ground, draw: () => drawRing(g, Math.round(v.ring.x), Math.round(v.ring.y), v.ring.team === 'red' ? FC.red : FC.blue) });
+    if (v.ball) {
+      const bx = Math.round(v.ball.x), by = Math.round(v.ball.y);
+      list.push({ key: by, draw: () => drawBall(g, bx, by, v.ball.roll) });
+    }
+    if (v.gauge) list.push({ key: top, draw: () => drawGauge(g, Math.round(v.gauge.x), Math.round(v.gauge.y), v.gauge.p) });
+    for (const p of v.puffs) list.push({ key: top, draw: () => drawPuff(g, Math.round(p.x), Math.round(p.y), p.k) });
+  }
+
+  const G_ = FS.goal, F_ = FS.field;
+  const futsal = {
+    paint: paintFutsal,
+    fs: FS,
+    // 풋살장에서는 S 패스·D 슛이라 방향키로만 걷는다(scene.js)
+    arrowsOnly: true,
+    walk: [
+      { x: 8, y: 30, w: W - 16, h: H - 34 },
+      { x: W - 20, y: FS.door.y + 2, w: 19, h: FS.door.h - 4 }
+    ],
+    blocks: [
+      // 골대 옆 테·뒤 테(입구로만 들어갈 수 있다)
+      { x: F_.x0 - G_.depth - 2, y: G_.y0 - 3, w: G_.depth + 2, h: 2 },
+      { x: F_.x0 - G_.depth - 2, y: G_.y1 + 1, w: G_.depth + 2, h: 2 },
+      { x: F_.x0 - G_.depth - 4, y: G_.y0 - 3, w: 3, h: G_.y1 - G_.y0 + 6 },
+      { x: F_.x1 + 1, y: G_.y0 - 3, w: G_.depth + 2, h: 2 },
+      { x: F_.x1 + 1, y: G_.y1 + 1, w: G_.depth + 2, h: 2 },
+      { x: F_.x1 + G_.depth + 2, y: G_.y0 - 3, w: 3, h: G_.y1 - G_.y0 + 6 },
+      // 벤치
+      { x: 52, y: 169, w: 60, h: 5 },
+      { x: 208, y: 169, w: 60, h: 5 }
+    ],
+    exits: [
+      { x: W - 3, y: FS.door.y, w: 3, h: FS.door.h, to: 'crossroad', spawn: { x: 16, y: 90, dir: 'right' } }
+    ],
+    decorate: decorateFutsal,
+    // 팀에 들어간 사람은 이 장소에서만 팀 유니폼으로 그린다(futsal.js 가 정한다)
+    dress: (who, look) => (PX.futsal ? PX.futsal.dress(who, look) : null)
+  };
+
+  PX.places = { crossroad, racetrack, mafiazone, futsal };
 })();

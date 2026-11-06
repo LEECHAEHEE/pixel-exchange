@@ -1,0 +1,122 @@
+/* 풋살장 UI. 무대(.stage) 안에서 논리 픽셀(--x, --y, --w, --h) × 화면 배율(--ps)로 놓인다.
+   scene.map === 'futsal' 일 때만 #fs-ui 가 보인다. */
+
+#fs-ui { position: absolute; inset: 0; z-index: 4; pointer-events: none; font-family: var(--font); }
+#fs-ui[hidden], #fs-ui [hidden] { display: none !important; }
+.stage:not([data-map='futsal']) #fs-ui { display: none; }
+
+.fs-score, .fs-lobby, .fs-center, .fs-result, .fs-toast {
+  position: absolute;
+  left: calc(var(--x) * var(--ps) * 1px);
+  top: calc(var(--y) * var(--ps) * 1px);
+  width: calc(var(--w) * var(--ps) * 1px);
+  height: calc(var(--h) * var(--ps) * 1px);
+}
+
+:root { --fs-red: #ff5a5f; --fs-blue: #5aa2ff; --fs-panel: rgba(12, 16, 22, 0.86); --fs-line: #3d4656; }
+
+/* ---------- 점수판(관중석 가운데 전광판 위) ---------- */
+.fs-score {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  color: #f4f6ef; line-height: 1; gap: calc(var(--ps) * 1px);
+}
+.fs-sline { display: flex; align-items: baseline; gap: calc(var(--ps) * 2px); font-size: max(12px, calc(var(--ps) * 6.5px)); }
+.fs-sline b { font-weight: normal; font-size: 0.72em; }
+.fs-sline i { font-style: normal; color: #8a93a3; }
+.fs-num { color: #ffe27a; font-family: var(--mono); min-width: 0.7em; text-align: center; }
+.fs-tred { color: var(--fs-red); }
+.fs-tblue { color: var(--fs-blue); }
+.fs-sub { display: flex; gap: calc(var(--ps) * 3px); font-size: max(10px, calc(var(--ps) * 3.6px)); color: #9fe0a8; white-space: nowrap; }
+.fs-clock { font-family: var(--mono); }
+.fs-clock.golden { color: #ffb84a; }
+.fs-phase { color: #c9d1dc; }
+
+/* ---------- 팀 고르기 ---------- */
+.fs-lobby {
+  pointer-events: auto;
+  display: flex; flex-direction: column; gap: calc(var(--ps) * 1.5px);
+  padding: calc(var(--ps) * 2px) calc(var(--ps) * 3px);
+  color: #e8ecf2; background: var(--fs-panel); border: calc(var(--ps) * 0.5px) solid var(--fs-line);
+  border-radius: calc(var(--ps) * 1px);
+  font-size: max(10px, calc(var(--ps) * 3.2px)); line-height: 1.2;
+  /* 내용만큼만 차지한다(--h 는 최대 높이) */
+  height: auto; max-height: calc(var(--h) * var(--ps) * 1px);
+}
+.fs-title { text-align: center; color: var(--gold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fs-cols { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: calc(var(--ps) * 2px); }
+.fs-col { display: flex; flex-direction: column; min-height: 0; padding: calc(var(--ps) * 1px); border-top: calc(var(--ps) * 0.8px) solid; background: rgba(255, 255, 255, 0.04); }
+.fs-col.red { border-color: var(--fs-red); }
+.fs-col.blue { border-color: var(--fs-blue); }
+.fs-chead { display: flex; justify-content: space-between; }
+.fs-col.red .fs-chead { color: var(--fs-red); }
+.fs-col.blue .fs-chead { color: var(--fs-blue); }
+.fs-chead span { color: #8a93a3; }
+.fs-col ol { flex: 1; min-height: 6em; list-style: none; overflow: hidden; }
+.fs-col li { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fs-col li.me { color: #ffe27a; }
+.fs-col li.empty { color: #6b7483; }
+.fs-lobby button, .fs-result button {
+  font: inherit; color: #1b1410; background: #d9dde4; border: 0; cursor: pointer;
+  padding: calc(var(--ps) * 0.5px) calc(var(--ps) * 2px); border-radius: calc(var(--ps) * 0.5px);
+}
+.fs-lobby button:hover:not(:disabled), .fs-result button:hover { background: #fff; }
+.fs-lobby button:disabled { color: #8a93a3; background: #3a4150; cursor: default; }
+.fs-col.red button:not(:disabled) { background: var(--fs-red); color: #fff; }
+.fs-col.blue button:not(:disabled) { background: var(--fs-blue); color: #fff; }
+.fs-row { display: flex; gap: calc(var(--ps) * 2px); }
+.fs-row .fs-start { margin-left: auto; color: #1b1410; background: var(--gold); padding-left: calc(var(--ps) * 4px); padding-right: calc(var(--ps) * 4px); }
+.fs-row .fs-start:hover:not(:disabled) { background: #ffe07a; }
+.fs-why { color: #9fb0c3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+
+/* ---------- 카운트다운·골 배너 ---------- */
+.fs-center {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--ps) * 1px);
+  color: #fff; text-align: center; white-space: nowrap;
+  text-shadow: calc(var(--ps) * 0.6px) calc(var(--ps) * 0.6px) 0 #0b0e13;
+}
+.fs-big { font-size: max(16px, calc(var(--ps) * 8px)); line-height: 1; }
+.fs-small { font-size: max(10px, calc(var(--ps) * 3.4px)); color: #e8ecf2; }
+.fs-small:empty { display: none; }
+.fs-center.count .fs-big { font-size: max(22px, calc(var(--ps) * 14px)); color: #ffe27a; }
+.fs-center.goal { background: rgba(10, 12, 16, 0.6); border-radius: calc(var(--ps) * 1px); }
+.fs-center.goal.red .fs-big { color: var(--fs-red); }
+.fs-center.goal.blue .fs-big { color: var(--fs-blue); }
+.fs-center.goal .fs-big { font-size: max(14px, calc(var(--ps) * 6px)); animation: fs-pop 0.35s ease-out; }
+@keyframes fs-pop { from { transform: scale(1.6); } to { transform: scale(1); } }
+
+/* ---------- 결과 ---------- */
+.fs-result {
+  pointer-events: auto;
+  display: flex; flex-direction: column; gap: calc(var(--ps) * 1.5px);
+  padding: calc(var(--ps) * 3px);
+  color: #e8ecf2; background: var(--fs-panel); border: calc(var(--ps) * 0.7px) solid var(--gold);
+  border-radius: calc(var(--ps) * 1px);
+  font-size: max(10px, calc(var(--ps) * 3.2px)); line-height: 1.25;
+  height: auto; max-height: calc(var(--h) * var(--ps) * 1px);
+}
+.fs-rhead { text-align: center; font-size: max(14px, calc(var(--ps) * 6px)); }
+.fs-rhead.red { color: var(--fs-red); }
+.fs-rhead.blue { color: var(--fs-blue); }
+.fs-rscore { text-align: center; font-size: max(12px, calc(var(--ps) * 4.5px)); }
+.fs-rscore b { font-weight: normal; }
+.fs-rscore i { font-style: normal; }
+.fs-mvp { text-align: center; color: var(--gold); }
+.fs-goals { flex: 1; min-height: 0; overflow-y: auto; list-style: decimal inside; }
+.fs-goals li.red::marker { color: var(--fs-red); }
+.fs-goals li.blue::marker { color: var(--fs-blue); }
+.fs-goals li.empty { list-style: none; color: #6b7483; text-align: center; }
+.fs-rfoot { display: flex; align-items: center; justify-content: space-between; gap: calc(var(--ps) * 2px); color: #9fb0c3; }
+
+/* ---------- 알림 한 줄 ---------- */
+.fs-toast {
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; background: rgba(160, 40, 40, 0.85); border-radius: calc(var(--ps) * 1px);
+  font-size: max(10px, calc(var(--ps) * 3.2px)); white-space: nowrap; overflow: hidden;
+}
+
+/* ---------- 골 순간 화면 번쩍임 ---------- */
+.fs-flash { position: absolute; inset: 0; opacity: 0; pointer-events: none; }
+.fs-flash.on { animation: fs-flash 0.7s ease-out; }
+.fs-flash.red { background: #ffd0d0; }
+.fs-flash.blue { background: #d0e2ff; }
+@keyframes fs-flash { from { opacity: 0.7; } to { opacity: 0; } }

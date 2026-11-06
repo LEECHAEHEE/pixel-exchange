@@ -8,80 +8,24 @@
   // 캐릭터·채팅·상점보다 먼저 키를 받아야 해서 다른 키 처리보다 가장 먼저 등록한다.
   // 한/영이 한글이어도(ㅌ) 키 위치(code)로 판단한다. 입력칸이 아니면 글자 조합은 신경 쓸 필요가 없다.
   const coverEl = document.getElementById('cover');
-  // ] 키로 띄우는 업무 문서 화면. 문서는 public/work/order.html(회사 문서라 저장소에 올리지 않는다).
-  // 문서가 없으면(배포 서버 등) X 와 같은 검은 가림 화면으로 대신한다.
-  const docEl = document.getElementById('cover-doc');
-  const DOC_URL = 'work/order.html#order';
-  const gameTitle = document.title;
-  let docReady = null;   // null: 아직 모름, true/false: 문서가 있는지
-  const covered = () => !coverEl.hidden || !docEl.hidden;
   // 가림 화면을 켜고 끌 때 서버에 알린다(idle). 서버 연결은 아래에서 만들고 이 자리를 채운다.
   let onCoverChange = () => {};
-
-  function hideGame() {
-    PX.scene && PX.scene.releaseKeys();
-    if (document.activeElement && document.activeElement !== docEl) document.activeElement.blur();
-  }
-
-  function toggleCover() {
-    coverEl.hidden = !coverEl.hidden;
-    if (!coverEl.hidden) hideGame();
-    onCoverChange();
-  }
-
-  function showDoc(on) {
-    docEl.hidden = !on;
-    document.title = on ? (docEl.contentDocument && docEl.contentDocument.title) || gameTitle : gameTitle;
-    if (on) {
-      hideGame();
-      docEl.focus();
-    } else {
-      window.focus();
-    }
-    onCoverChange();
-  }
-
-  function toggleDoc() {
-    if (!docEl.hidden) return showDoc(false);
-    if (docReady === false) return toggleCover();
-    if (docReady === true) return showDoc(true);
-    // 처음 한 번만 문서가 있는지 확인하고 불러 둔다(이후에는 스크롤 위치까지 그대로 다시 보인다)
-    fetch(DOC_URL.split('#')[0], { method: 'HEAD' }).then((r) => {
-      docReady = r.ok;
-      if (!r.ok) return toggleCover();
-      docEl.addEventListener('load', () => {
-        const d = docEl.contentDocument;
-        document.title = d.title || gameTitle;
-        // 문서 안에 포커스가 있을 때도 ] 로 돌아온다
-        d.addEventListener('keydown', (e) => {
-          if (e.code === 'BracketRight' && !e.repeat) {
-            e.preventDefault();
-            showDoc(false);
-          }
-        });
-      }, { once: true });
-      docEl.src = DOC_URL;
-      showDoc(true);
-    }, () => { docReady = false; toggleCover(); });
-  }
-
   window.addEventListener('keydown', (e) => {
     const t = e.target;
     const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
-    if (e.code === 'KeyX' && !typing && !e.repeat && docEl.hidden) {
-      toggleCover();
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      return;
-    }
-    if (e.code === 'BracketRight' && !typing && !e.repeat && coverEl.hidden) {
-      toggleDoc();
+    if (e.code === 'KeyX' && !typing && !e.repeat) {
+      coverEl.hidden = !coverEl.hidden;
+      if (!coverEl.hidden) {
+        PX.scene && PX.scene.releaseKeys();
+        if (document.activeElement) document.activeElement.blur();
+      }
+      onCoverChange();
       e.preventDefault();
       e.stopImmediatePropagation();
       return;
     }
     // 가려져 있는 동안에는 다른 키가 캐릭터·채팅·상점으로 가지 않게 한다
-    if (covered()) {
+    if (!coverEl.hidden) {
       e.preventDefault();
       e.stopImmediatePropagation();
     }
@@ -192,6 +136,7 @@
   // 상점 주인: 말을 걸면 대화창 → 구매한다 / 나간다 → 상점 창
   const shop = PX.createShop({ stage, name: scene.shopkeeperName });
   chat.setName('shop', scene.shopkeeperName);
+  chat.setName('keeper', '경마장 관리인');
   scene.hooks.onTalk = () => shop.talk();
   shop.onOpen = () => {
     scene.setLocked(true);
@@ -236,8 +181,21 @@
     near: 'Space 로 앉기',
     talk: 'Space 로 상점 주인에게 말 걸기',
     seated: 'Space 또는 ↓ ← → 로 일어나기',
-    'crossroad:free': '아래 복도는 경마장, 위 복도는 객장 · [Esc] 조작 방법',
-    'racetrack:free': '1~5 키·전광판 클릭으로 우승마 투표 · [Esc] 조작 방법'
+    'crossroad:free': '↑ 객장 · ↓ 경마장 · ← 풋살장 · → 마피아존 · [Esc] 조작 방법',
+    // 풋살장은 팀·공 상태로 고른다(futsal.prompt)
+    'futsal:lobby': '팀을 골라 참가하세요 · 풋살장에서는 방향키로만 이동 · [Esc] 조작 방법',
+    'futsal:team': 'START 로 경기 시작 · 경기 중 방향키 이동, S 패스, D 슛',
+    'futsal:play': '방향키 이동 · 공에 닿으면 드리블 · 공이 없을 때 S·D 는 태클',
+    'futsal:ball': 'S 패스 · D 누르고 있다 떼면 슛(오래 누를수록 세게) · 방향키 드리블',
+    'futsal:watch': '관전 중 · 경기가 끝나면 팀을 골라 참가할 수 있어요',
+    'racetrack:free': '1~5 키·전광판 클릭으로 우승마 투표 · [Esc] 조작 방법',
+    'racetrack:steal': 'Space 로 말 훔쳐 타기 · 관리인에게 잡히면 뺏긴다! 경마장 밖으로 달아나자',
+    'racetrack:return': 'Space 로 말 돌려놓기',
+    'racetrack:empty': '빈 칸입니다. 누가 말을 훔쳐 갔어요',
+    // 말 탄 채 아무것도 바라보지 않을 때. 이 장소 문구가 없으면 그 장소의 free 문구를 쓴다.
+    ride: 'F 로 앞발차기 · [Esc] 조작 방법',
+    'crossroad:ride': 'F 로 앞발차기 · ↑ 객장 · ↓ 경마장 · ← 풋살장 · → 마피아존',
+    'racetrack:ride': 'F 로 앞발차기 · 관리인에게 잡히면 뺏긴다! 경마장 밖으로 달아나자'
   };
   let hintState = 'free';
 
@@ -248,13 +206,18 @@
     const dt = Math.min(0.1, (now - last) / 1000);
     last = now;
     scene.update(dt);
+    // 풋살 공 자리는 그리기 전에 맞춘다(드리블 공은 주인 발 앞에 붙는다)
+    futsal.setMap(scene.map);
+    futsal.update(dt);
     scene.render();
     chat.update(now);
     race.update();
 
     showMap(scene.map);
     mafia.setMap(scene.map);
-    const state = scene.map === 'exchange' ? scene.prompt() : scene.map + ':' + scene.prompt();
+    const state = scene.map === 'exchange' ? scene.prompt()
+      : scene.map === 'futsal' ? 'futsal:' + futsal.prompt()
+      : scene.map + ':' + scene.prompt();
     if (state !== hintState) {
       // 앉으면 전광판을 크게, 일어나면 원래 자리로
       const seated = state === 'seated';
@@ -265,7 +228,7 @@
         layoutGrid();
       }
       hintState = state;
-      hintEl.textContent = HINTS[state];
+      hintEl.textContent = HINTS[state] ?? HINTS[state.replace(/ride$/, 'free')];
     }
   }
   requestAnimationFrame(loop);
@@ -285,8 +248,6 @@
 
   function applyMarket(m) {
     if (m.symbols && m.symbols.length) board.setSymbols(m.symbols);
-    // 기준가를 먼저 알아야 줄인 틱의 등락을 계산할 수 있다
-    if (m.meta) board.setMeta(m.meta);
     if (m.ticks && m.ticks.length) board.push(m.ticks);
     if (m.indices && m.indices.length) board.setIndices(m.indices);
     if (m.ticker !== undefined) board.setTicker(m.ticker);
@@ -296,6 +257,9 @@
   // 마피아존 UI (scene.map==='mafiazone' 일 때만 보인다). mz* 메시지를 처리한다.
   const mafia = PX.createMafia({ scene, chat, whoOf, send: (m) => net.send(m) });
   PX.mafia = mafia;
+  // 풋살장 UI (scene.map==='futsal' 일 때만 보인다). fs* 메시지를 처리하고 공을 그릴 상태를 places.js 에 준다.
+  const futsal = PX.createFutsal({ stage, scene, chat, whoOf, send: (m) => net.send(m), place });
+  PX.futsal = futsal;
 
   const net = PX.createNet({
     url: (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws',
@@ -306,7 +270,7 @@
       if (state === 'connecting') onlineEl.textContent = '연결 중';
       if (state === 'closed') onlineEl.textContent = '연결 끊김 · 재접속 대기';
     },
-    handlers: Object.assign({}, mafia.handlers, {
+    handlers: Object.assign({}, mafia.handlers, futsal.handlers, {
       welcome(msg) {
         // 재접속이면 이전 사람들의 말풍선·닉네임표를 먼저 치운다
         for (const [id] of scene.net.names()) chat.remove(id);
@@ -322,6 +286,7 @@
         scene.net.dog(msg.dog);
         applyMarket(msg.market);
         if (msg.race) race.apply(msg.race);
+        scene.net.stable(msg.stable);
         refreshOnline();
         // 새 연결은 서버에서 '보는 중' 으로 시작하므로, 숨김·가림 상태면 다시 알린다
         idleSent = false;
@@ -334,6 +299,8 @@
         }
         if (msg.dog) scene.net.dog(msg.dog);
         if (msg.market) applyMarket(msg.market);
+        if (msg.stable) scene.net.stable(msg.stable);
+        if (msg.futsal) futsal.apply(msg.futsal);
       },
       join(msg) {
         scene.net.add(msg.user);
@@ -367,6 +334,15 @@
       emote(msg) { if (msg.id !== myId) scene.playEmote(msg.id, msg.emote); },
       // 강아지가 새 주인을 만나면 짖는다
       dog(msg) { if (scene.net.dog(msg) && msg.owner) chat.say('dog', '멍!'); },
+      // 말을 훔쳐 탔다(stall)·돌려놓았다·관리인에게 뺏겼다(stall null)
+      mount(msg) {
+        scene.net.mount(whoOf(msg.id), msg.stall);
+        if (msg.why === 'futsal' && msg.id === myId) futsal.handlers.fsSys({ text: '풋살장에는 말을 타고 들어올 수 없어요. 말은 마굿간으로 돌아갔습니다.' });
+      },
+      keeper(msg) { scene.net.keeper(msg); },
+      keeperSay(msg) { chat.say('keeper', msg.text); },
+      // 말 탄 사람의 앞발차기. 내가 찼으면 앞발 드는 모습은 이미 그렸고, 맞은 사람만 넘어뜨린다.
+      hoof(msg) { scene.hoof(whoOf(msg.id), msg.dir, (msg.hits || []).map(([id, side]) => [whoOf(id), side])); },
       chat(msg) {
         chat.say(whoOf(msg.id), msg.text);
         chat.addLog(msg.name || '?', msg.text);
@@ -377,10 +353,7 @@
       raceVote(msg) { race.setMine(msg.horse, msg.reason); },
 
       symbols(msg) { board.setSymbols(msg.symbols); },
-      ticks(msg) {
-        if (msg.meta) board.setMeta(msg.meta);
-        board.push(msg.ticks);
-      },
+      ticks(msg) { board.push(msg.ticks); },
       indices(msg) { board.setIndices(msg.indices); },
       ticker(msg) { board.setTicker(msg.text); },
       status(msg) { board.setStatus(msg.text, msg.live); }
@@ -398,6 +371,8 @@
   };
   scene.hooks.onStand = (x, y, dir) => net.send({ t: 'stand', x, y, dir });
   scene.hooks.onGo = (map, x, y, dir) => net.send({ t: 'go', map, x, y, dir });
+  scene.hooks.onStable = (act, stall) => net.send({ t: 'stable', act, stall });
+  scene.hooks.onHoof = (dir) => net.send({ t: 'hoof', dir });
   chat.onSend = (text) => net.send({ t: 'chat', text });
   race.onVote = (horse) => net.send({ t: 'vote', horse });
 
@@ -416,7 +391,7 @@
   // 다시 보이면 서버가 sync 로 지금 모습을 한 번에 보내 준다.
   let idleSent = false;
   function reportIdle() {
-    const on = document.hidden || covered();
+    const on = document.hidden || !coverEl.hidden;
     if (on === idleSent) return;
     idleSent = on;
     net.send({ t: 'idle', on });
