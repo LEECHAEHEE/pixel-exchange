@@ -1,7 +1,9 @@
 // 인벤토리: 산 아이템 보관과 착용. I 키로 창을 열고 닫는다.
-// 보유·착용 목록은 이 브라우저(localStorage)에 저장한다. 로그인이 없어서 서버에는 착용 목록만 알린다.
+// 보유·착용 목록과 잔액의 원본은 서버의 유저 기록이다(server/accounts.js). 입장하면 서버 값으로 바뀐다.
+// 이 브라우저(localStorage)에도 사본을 두는데, 입장 전 미리보기와 서버에 처음 기록을 만들 때 옮겨 줄 값으로 쓴다.
 //
-//   inv.has(id) / inv.add(id) / inv.equipped
+//   inv.has(id) / inv.equipped / inv.local()
+//   inv.setState({ owned, equip, balance })   서버가 알려 준 인벤토리로 바꾼다
 //   inv.onEquip(ids)     착용이 바뀌었을 때. main.js 가 캐릭터·서버에 전달한다.
 //   inv.onOpen() / inv.onClose()
 (function () {
@@ -174,7 +176,8 @@
     function renderItems() {
       itemsEl.replaceChildren();
       buttons = [];
-      countEl.textContent = `보유 아이템 ${state.owned.length}개`;
+      countEl.textContent = `보유 아이템 ${state.owned.length}개`
+        + (typeof state.balance === 'number' ? ` · 잔액 ${state.balance.toLocaleString('ko-KR')}원` : '');
       const inCat = ownedIn(cat);
       if (!inCat.length) {
         const p = document.createElement('p');
@@ -237,7 +240,7 @@
 
     function toggle(id) {
       state.equip = PX.items.equipToggle(state.equip, id);
-      save(state);
+      save({ owned: state.owned, equip: state.equip, starter: 1 });
       render();
       inv.onEquip(state.equip.slice());
     }
@@ -307,10 +310,13 @@
       get open() { return !el.hidden; },
       get equipped() { return state.equip.slice(); },
       has(id) { return state.owned.includes(id); },
-      add(id) {
-        if (!PX.items.byId(id) || state.owned.includes(id)) return;
-        state.owned.push(id);
-        save(state);
+      local() { return { owned: state.owned.slice(), equip: state.equip.slice() }; },
+      setState(s) {
+        const known = (a) => Array.isArray(a) ? a.filter(id => PX.items.byId(id)) : [];
+        state.owned = known(s.owned);
+        state.equip = known(s.equip).filter(id => state.owned.includes(id));
+        if (typeof s.balance === 'number') state.balance = s.balance;
+        save({ owned: state.owned, equip: state.equip, starter: 1 });
         if (!el.hidden) render();
       },
       refresh() { if (!el.hidden) drawPreview(); },

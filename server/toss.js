@@ -142,6 +142,7 @@ function tossSource(market, env, keys) {
   const lastPrice = new Map();   // code → 마지막으로 보낸 현재가
   const indexBase = new Map();   // KOSPI/KOSDAQ → 전일 종가
   let baseDay = '';
+  let sentBaseKey = '';          // 마지막으로 종목 목록에 실어 보낸 기준가들
   let failing = false;
 
   function fail(where, e) {
@@ -207,8 +208,15 @@ function tossSource(market, env, keys) {
       await loadBases(list, today);
       const changed = list.map(s => s.code).join() !== stocks.map(s => s.code).join();
       stocks = list;
+      // 틱은 [code, price] 로만 나가고 등락은 화면이 기준가로 계산하므로, 기준가를 종목 목록에 실어야
+      // 나중에 들어온 사람도 등락을 본다. 날이 바뀌어 기준가만 달라져도 다시 보낸다.
+      const withBase = stocks.map(s => ({ code: s.code, name: s.name, base: base.get(s.code) }));
+      const baseKey = withBase.map(s => s.base).join();
+      if (changed || baseKey !== sentBaseKey) {
+        sentBaseKey = baseKey;
+        market.setSymbols(withBase);
+      }
       if (changed) {
-        market.setSymbols(stocks);
         lastPrice.clear();
         console.log(`[toss] 시가총액 상위 ${stocks.length}종목: ${stocks.slice(0, 5).map(s => s.name).join(', ')} …`);
       }

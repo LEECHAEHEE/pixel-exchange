@@ -560,6 +560,7 @@ body {
   border-bottom: 2px solid #5e3a22;
 }
 .shop-head h2 { font-size: 18px; font-weight: normal; color: var(--gold); }
+.shop-balance { margin-left: auto; margin-right: 12px; font-size: 14px; color: #f4ead8; }
 .shop-close {
   width: 28px;
   height: 28px;

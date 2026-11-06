@@ -1,12 +1,14 @@
 // 상점 주인과의 대화창, 상점 창, 판매 목록.
 //
 //   shop.talk()          대화창 열기(구매한다 / 나간다)
-//   shop.onBuy(item)     구매 버튼을 눌렀을 때. main.js 가 인벤토리에 넣도록 바꿔 끼운다.
+//   shop.onBuy(item)     구매 버튼을 눌렀을 때. main.js 가 서버에 구매를 요청하도록 바꿔 끼운다.
 //   shop.isOwned(id)     이미 가진 아이템인지. main.js 가 인벤토리를 보도록 바꿔 끼운다.
+//   shop.result(text)    서버가 알려 준 구매 결과(완료·잔액 부족 등)를 보이고 보유 표시를 새로 그린다
+//   shop.setBalance(n)   잔액 표시
 //   shop.onOpen()        대화창·상점 창이 하나라도 열릴 때 (캐릭터 조작 잠금용)
 //   shop.onClose(reason) 모두 닫혔을 때. reason: 'leave' | 'shop'
 //
-// 아이템 목록·아이콘은 items.js 에 있다. 아직 잔액은 없어서 구매해도 돈이 줄지 않는다.
+// 아이템 목록·아이콘은 items.js 에 있다. 잔액 확인과 차감은 서버가 한다.
 (function () {
 
   const CATEGORIES = PX.items.categories;
@@ -48,6 +50,7 @@
       <section class="shop-box" role="dialog" aria-label="상점">
         <header class="shop-head">
           <h2>상점</h2>
+          <span class="shop-balance"></span>
           <button type="button" class="shop-close" aria-label="닫기">✕</button>
         </header>
         <nav class="shop-tabs" role="tablist"></nav>
@@ -62,6 +65,7 @@
     const tabsEl = shopEl.querySelector('.shop-tabs');
     const itemsEl = shopEl.querySelector('.shop-items');
     const msgEl = shopEl.querySelector('.shop-msg');
+    const balanceEl = shopEl.querySelector('.shop-balance');
     const tabs = CATEGORIES.map(cat => {
       const b = document.createElement('button');
       b.type = 'button';
@@ -75,6 +79,7 @@
 
     let current = CATEGORIES[0].id;
     let buyButtons = [];
+    let markers = [];
     let msgTimer = 0;
 
     function selectTab(id, focusFirst = true) {
@@ -87,6 +92,7 @@
       itemsEl.replaceChildren();
       itemsEl.scrollTop = 0;
       buyButtons = [];
+      markers = [];
       for (const item of ITEMS.filter(i => i.cat === id)) {
         const card = document.createElement('article');
         card.className = 'item';
@@ -116,7 +122,8 @@
           buy.classList.toggle('owned', owned);
         };
         markOwned();
-        buy.addEventListener('click', () => { buyItem(item); markOwned(); });
+        markers.push(markOwned);
+        buy.addEventListener('click', () => buyItem(item));
         card.append(drawIcon(item), info, price, buy);
         itemsEl.appendChild(card);
         buyButtons.push(buy);
@@ -124,15 +131,20 @@
       if (focusFirst) selectItem(0);
     }
 
-    function buyItem(item) {
-      if (shop.isOwned(item.id)) {
-        msgEl.textContent = `${item.name} 은(는) 이미 가지고 있습니다 · I 로 인벤토리에서 입어 보세요`;
-      } else {
-        shop.onBuy(item);
-        msgEl.textContent = `${item.name} 구매 완료 (${numFmt.format(item.price)}원) · I 로 인벤토리에서 입어 보세요`;
-      }
+    function showMsg(text) {
+      msgEl.textContent = text;
       clearTimeout(msgTimer);
       msgTimer = setTimeout(() => { msgEl.textContent = ''; }, 3000);
+    }
+
+    // 실제 구매는 서버가 잔액을 확인한 뒤 shop.result 로 알려 준다
+    function buyItem(item) {
+      if (shop.isOwned(item.id)) {
+        showMsg(`${item.name} 은(는) 이미 가지고 있습니다 · I 로 인벤토리에서 입어 보세요`);
+      } else {
+        shop.onBuy(item);
+        showMsg('구매 중…');
+      }
     }
 
     // 선택 표시(▶)는 포커스 스타일에 맡기지 않고 직접 붙인다. 창에 포커스가 없을 때도 보여야 해서.
@@ -278,6 +290,11 @@
           openDialog();
         }, 0);
       },
+      result(text) {
+        for (const mark of markers) mark();
+        showMsg(text);
+      },
+      setBalance(n) { balanceEl.textContent = `잔액 ${numFmt.format(n)}원`; },
       onBuy() {},
       isOwned() { return false; },
       onOpen() {},

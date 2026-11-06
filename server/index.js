@@ -13,6 +13,8 @@ const { createRoom } = require('./room');
 const { createMarket, startSource } = require('./market');
 const { startNews } = require('./news');
 const { createRace } = require('./race');
+const { loadCatalog } = require('./catalog');
+const { createAccounts } = require('./accounts');
 
 const PORT = Number(process.env.PORT) || 5178;
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
@@ -103,7 +105,8 @@ const race = createRace({
   broadcast: msg => room && room.broadcast(msg),
   cycleMs: Number(process.env.RACE_CYCLE_SEC) * 1000 || undefined
 });
-room = createRoom({ market, race });
+const accounts = createAccounts({ catalog: loadCatalog(), env: process.env });
+room = createRoom({ market, race, accounts });
 // 전광판은 객장에만 있으므로 시세는 객장을 보는 사람에게만 보낸다
 market.attach(msg => room.sendMap('exchange', msg));
 startSource(market, process.env);
@@ -111,6 +114,8 @@ startNews(list => market.setNews(list), process.env, () => market.snapshot().sym
 
 wss.on('connection', (ws) => {
   let user = null;
+  let joining = false;
+  let closed = false;
   ws.isAlive = true;
   ws.on('pong', () => { ws.isAlive = true; });
 
@@ -123,15 +128,22 @@ wss.on('connection', (ws) => {
     }
     if (!msg || typeof msg.t !== 'string') return;
 
-    // 입장(join) 전에는 다른 메시지를 받지 않는다
+    // 입장(join) 전에는 다른 메시지를 받지 않는다. 유저 기록을 불러오는 동안 온 메시지도 버린다.
     if (!user) {
-      if (msg.t === 'join') user = room.join(ws, msg.name, msg.equip);
+      if (msg.t === 'join' && !joining) {
+        joining = true;
+        room.join(ws, msg).then((u) => {
+          user = u;
+          if (u && closed) room.leave(u);
+        }).catch((e) => console.warn('[ws] join failed', e.message));
+      }
       return;
     }
     room.handle(user, msg);
   });
 
   ws.on('close', () => {
+    closed = true;
     if (user) room.leave(user);
   });
   ws.on('error', (e) => console.warn('[ws] error', e.message));

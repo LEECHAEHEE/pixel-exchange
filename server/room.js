@@ -62,7 +62,7 @@ function clampNum(v, lo, hi) {
   return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : null;
 }
 
-function createRoom({ market, race }) {
+function createRoom({ market, race, accounts }) {
   const users = new Map();
   const seats = new Array(SEAT_COUNT).fill(null);
   const dirty = new Set();
@@ -128,11 +128,19 @@ function createRoom({ market, race }) {
     send(u, msg);
   }
 
-  function join(ws, rawName, rawEquip) {
+  // 유저 기록(보유·착용·잔액)을 불러와야 해서 비동기다. 불러오는 사이 창을 닫았으면 입장시키지 않는다.
+  //   msg.uid    브라우저 고유 번호
+  //   msg.local  그 브라우저에 남아 있던 인벤토리 { owned, equip }. 기록을 처음 만들 때만 쓴다.
+  async function join(ws, msg) {
+    const name = cleanText(msg.name, NAME_MAX) || '손님' + guestNo++;
+    const account = await accounts.enter(msg.uid, name, msg.local);
+    if (ws.readyState !== 1) {
+      accounts.leave(account);
+      return null;
+    }
     const id = String(nextId++);
-    const name = cleanText(rawName, NAME_MAX) || '손님' + guestNo++;
     const u = {
-      id, ws, name, look: randomLook(), equip: cleanEquip(rawEquip), map: 'exchange',
+      id, ws, name, look: randomLook(), equip: account.equip.slice(), account, map: 'exchange',
       x: 150 + Math.random() * 20, y: 170 + Math.random() * 6, dir: 'up', moving: false,
       seat: null, lastChat: 0
     };
@@ -141,6 +149,7 @@ function createRoom({ market, race }) {
       t: 'welcome',
       me: publicOf(u),
       users: [...users.values()].filter(o => o !== u).map(publicOf),
+      inv: accounts.view(account),
       history,
       dog: dog.snapshot(),
       market: market.snapshot(),
@@ -157,6 +166,7 @@ function createRoom({ market, race }) {
     race.leave(u.id);
     if (u.map === 'mafiazone') mafia.leave(u);
     users.delete(u.id);
+    accounts.leave(u.account);
     dog.forget(u.id);
     dirty.delete(u.id);
     broadcast({ t: 'leave', id: u.id });
@@ -243,9 +253,18 @@ function createRoom({ market, race }) {
         broadcast({ t: 'emote', id: u.id, emote: msg.emote });
         return;
       }
+      // 착용은 가진 아이템만. 요청과 결과가 다르면(안 가진 것을 입으려 함 등) 본인에게 바로잡은 목록을 보낸다.
       case 'equip': {
-        u.equip = cleanEquip(msg.equip);
+        const asked = cleanEquip(msg.equip);
+        u.equip = accounts.setEquip(u.account, asked);
         broadcast({ t: 'equip', id: u.id, equip: u.equip });
+        if (asked.join() !== u.equip.join()) send(u, Object.assign({ t: 'inv' }, accounts.view(u.account)));
+        return;
+      }
+      // 구매: 서버가 잔액을 확인하고 깎는다. 결과(바뀐 인벤토리와 실패 사유)는 본인에게만.
+      case 'buy': {
+        const reason = accounts.buy(u.account, msg.id);
+        send(u, Object.assign({ t: 'inv', bought: reason ? null : msg.id, reason }, accounts.view(u.account)));
         return;
       }
       case 'chat': {

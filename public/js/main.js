@@ -213,7 +213,8 @@
     getBaseLook: () => scene.player.baseLook,
     canOpen: () => scene.player.active && !shop.open && !(emote && emote.open)
   });
-  shop.onBuy = (item) => inventory.add(item.id);
+  // 구매는 서버가 잔액을 확인한다. 결과는 아래 inv 메시지로 온다. net 은 아래에서 만들지만 구매는 입장 뒤에만 일어난다.
+  shop.onBuy = (item) => net.send({ t: 'buy', id: item.id });
   shop.isOwned = (id) => inventory.has(id);
   scene.setMyEquip(inventory.equipped);
   inventory.onOpen = () => scene.setLocked(true);
@@ -298,7 +299,8 @@
 
   const net = PX.createNet({
     url: (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws',
-    joinExtra: () => ({ equip: inventory.equipped }),
+    // uid 로 서버의 유저 기록을 찾는다. local 은 기록을 처음 만들 때 옮겨 줄 이 브라우저의 인벤토리.
+    joinExtra: () => ({ uid: browserId(), local: inventory.local() }),
     onState(state) {
       onlineEl.dataset.state = state;
       if (state === 'connecting') onlineEl.textContent = '연결 중';
@@ -309,6 +311,10 @@
         // 재접속이면 이전 사람들의 말풍선·닉네임표를 먼저 치운다
         for (const [id] of scene.net.names()) chat.remove(id);
         myId = msg.me.id;
+        if (msg.inv) {
+          inventory.setState(msg.inv);
+          shop.setBalance(msg.inv.balance);
+        }
         scene.net.welcome(msg.me, msg.users);
         chat.setName('me', msg.me.name);
         for (const u of msg.users) chat.setName(u.id, u.name);
@@ -349,6 +355,15 @@
       sitDenied() { scene.net.sitDenied(); },
       go(msg) { if (msg.id !== myId) scene.net.go(msg.id, msg.map, msg.x, msg.y, msg.dir); },
       equip(msg) { if (msg.id !== myId) scene.net.equip(msg.id, msg.equip); },
+      // 서버가 바꾼(또는 바로잡은) 내 인벤토리. 구매 결과도 여기에 실려 온다.
+      inv(msg) {
+        inventory.setState(msg);
+        scene.setMyEquip(inventory.equipped);
+        shop.setBalance(msg.balance);
+        const item = msg.bought && PX.items.byId(msg.bought);
+        if (item) shop.result(`${item.name} 구매 완료 (${item.price.toLocaleString('ko-KR')}원) · I 로 인벤토리에서 입어 보세요`);
+        else if (msg.reason) shop.result(msg.reason);
+      },
       emote(msg) { if (msg.id !== myId) scene.playEmote(msg.id, msg.emote); },
       // 강아지가 새 주인을 만나면 짖는다
       dog(msg) { if (scene.net.dog(msg) && msg.owner) chat.say('dog', '멍!'); },
@@ -418,6 +433,21 @@
   const joinEl = document.getElementById('join');
   const joinName = document.getElementById('join-name');
   const NAME_KEY = 'pixel-exchange.name';
+  const UID_KEY = 'pixel-exchange.uid';
+  let uid = null;
+
+  // 브라우저 고유 번호. 서버는 이 번호로 유저 기록(아이템·잔액)을 찾는다.
+  // 저장소를 못 쓰면 이번 접속 동안만 같은 번호를 쓴다(다음에는 새 사람으로 보인다).
+  function browserId() {
+    if (uid) return uid;
+    try { uid = localStorage.getItem(UID_KEY); } catch { /* 없어도 동작한다 */ }
+    if (!uid) {
+      uid = crypto.randomUUID ? crypto.randomUUID()
+        : Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
+      try { localStorage.setItem(UID_KEY, uid); } catch { /* 없어도 동작한다 */ }
+    }
+    return uid;
+  }
 
   // 지난번 닉네임을 채워 둔다. 저장소를 못 쓰는 환경(사생활 보호 모드 등)이면 그냥 넘어간다.
   try { joinName.value = localStorage.getItem(NAME_KEY) || ''; } catch { /* 없어도 동작한다 */ }
