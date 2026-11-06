@@ -17,7 +17,9 @@
     rail: '#f4f1e6', railShade: '#bdb7a8',
     dirt: '#b0814f', dirtDark: '#9a6d40', dirtLight: '#c4955f',
     infield: '#74b35a', infieldStripe: '#6aa84f',
-    tote: '#14171c', toteFrame: '#3a3f48'
+    tote: '#14171c', toteFrame: '#3a3f48',
+    roof: '#8e3b2c', roofDark: '#6c2a1f', barn: '#b5763f', barnDark: '#8d5a2e', stallIn: '#3a2a1e', hay: '#d8b85a',
+    horse: '#8a5530', horseDark: '#5e3820', mane: '#2e1d14'
   };
 
   function grass(g, r, x0, y0, w, h, base) {
@@ -177,6 +179,8 @@
   const RAIL_Y = 60;
   const TRACK = { cx: 160, cy: 122, rx: 150, ry: 54, irx: 116, iry: 24 };
   const FINISH_X = 208;
+  // 광장 왼쪽 담장에 붙은 마굿간. 칸 가운데 x 와 칸 앞 줄은 server/stable.js 와 맞춰야 한다.
+  const STABLE = { x: 22, w: 76, y: 1, stallW: 20, stallX: [36, 60, 84], frontY: 28 };
 
   // ---------- 말 ----------
 
@@ -242,6 +246,9 @@
 
   // 장면이 매 프레임 부른다. 사람과 함께 깊이 순으로 그려지도록 목록에 넣는다.
   function decorate(list, g, t) {
+    // 마굿간 칸의 말(칸 문 뒤라 사람보다 먼저 그린다)
+    const st = PX.stable && PX.stable.stalls;
+    if (st) STABLE.stallX.forEach((cx, n) => { if (st[n]) list.push({ key: 0, draw: () => drawStallHorse(g, cx, t, n) }); });
     const race = PX.race;
     const pos = race && race.positions();
     if (!pos) return;
@@ -343,6 +350,8 @@
     rect(g, 120, 2, 80, 9, COL.banner);
     rect(g, 120, 2, 80, 1, COL.bannerHi);
 
+    paintStable(g);
+
     // 광장 양 끝 화분
     for (const x of [6, W - 20]) {
       rect(g, x + 1, 44, 12, 10, PAL.pot);
@@ -353,8 +362,54 @@
     return c;
   }
 
+  // 지붕 + 나무 벽 + 칸 셋. 칸 안의 말은 decorate 에서 그린다(훔쳐 가면 빈 칸).
+  function paintStable(g) {
+    const S = STABLE;
+    const bottom = S.frontY - 1;
+    rect(g, S.x - 1, S.y + 5, S.w + 2, bottom - S.y - 4, PAL.outline);
+    rect(g, S.x, S.y + 6, S.w, bottom - S.y - 6, COL.barn);
+    for (let x = S.x + 3; x < S.x + S.w; x += 4) rect(g, x, S.y + 6, 1, bottom - S.y - 6, COL.barnDark);
+    // 지붕
+    rect(g, S.x - 3, S.y - 1, S.w + 6, 8, PAL.outline);
+    for (let y = S.y; y < S.y + 6; y += 2) {
+      rect(g, S.x - 2, y, S.w + 4, 2, (y / 2) % 2 ? COL.roofDark : COL.roof);
+    }
+    // 칸: 어두운 안쪽, 바닥 짚, 반쪽 문(X 자 덧대기)
+    for (const cx of S.stallX) {
+      const x0 = cx - S.stallW / 2;
+      rect(g, x0 - 1, S.y + 8, S.stallW + 2, bottom - S.y - 8, PAL.outline);
+      rect(g, x0, S.y + 9, S.stallW, bottom - S.y - 9, COL.stallIn);
+      rect(g, x0, bottom - 3, S.stallW, 2, COL.hay);
+      const dy = bottom - 7;
+      rect(g, x0 - 1, dy - 1, S.stallW + 2, 8, PAL.outline);
+      rect(g, x0, dy, S.stallW, 6, COL.barn);
+      for (let i = 0; i < S.stallW; i++) {
+        const k = Math.round(i * 5 / (S.stallW - 1));
+        rect(g, x0 + i, dy + k, 1, 1, COL.barnDark);
+        rect(g, x0 + i, dy + 5 - k, 1, 1, COL.barnDark);
+      }
+      rect(g, x0, dy, S.stallW, 1, COL.barnDark);
+    }
+  }
+
+  // 칸 문 위로 고개를 내민 말(앞모습)
+  function drawStallHorse(g, cx, t, n) {
+    const top = STABLE.frontY - 1 - 7 - 9;
+    const nod = Math.floor(t * 0.7 + n * 1.3) % 4 === 0 ? 1 : 0;
+    const y = top + nod;
+    rect(g, cx - 4, y - 1, 8, 11 - nod, PAL.outline);
+    rect(g, cx - 3, y, 6, 10 - nod, COL.horse);
+    rect(g, cx - 3, y, 6, 2, COL.mane);
+    rect(g, cx - 5, y, 2, 2, PAL.outline);
+    rect(g, cx + 3, y, 2, 2, PAL.outline);
+    rect(g, cx - 2, y + 3, 1, 1, PAL.outline);
+    rect(g, cx + 1, y + 3, 1, 1, PAL.outline);
+    rect(g, cx - 2, y + 7 - nod, 4, 2, COL.horseDark);
+  }
+
   const racetrack = {
     paint: paintRacetrack,
+    stable: STABLE,
     walk: [
       { x: 22, y: WALL_H + 10, w: W - 44, h: RAIL_Y - WALL_H - 14 },
       { x: GATE_X + 4, y: 0, w: GATE_W - 8, h: WALL_H + 12 }

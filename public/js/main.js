@@ -136,6 +136,7 @@
   // 상점 주인: 말을 걸면 대화창 → 구매한다 / 나간다 → 상점 창
   const shop = PX.createShop({ stage, name: scene.shopkeeperName });
   chat.setName('shop', scene.shopkeeperName);
+  chat.setName('keeper', '경마장 관리인');
   scene.hooks.onTalk = () => shop.talk();
   shop.onOpen = () => {
     scene.setLocked(true);
@@ -180,7 +181,10 @@
     talk: 'Space 로 상점 주인에게 말 걸기',
     seated: 'Space 또는 ↓ ← → 로 일어나기',
     'crossroad:free': '아래 복도는 경마장, 위 복도는 객장 · [Esc] 조작 방법',
-    'racetrack:free': '1~5 키·전광판 클릭으로 우승마 투표 · [Esc] 조작 방법'
+    'racetrack:free': '1~5 키·전광판 클릭으로 우승마 투표 · [Esc] 조작 방법',
+    'racetrack:steal': 'Space 로 말 훔쳐 타기 · 관리인에게 잡히면 뺏긴다! 경마장 밖으로 달아나자',
+    'racetrack:return': 'Space 로 말 돌려놓기',
+    'racetrack:empty': '빈 칸입니다. 누가 말을 훔쳐 갔어요'
   };
   let hintState = 'free';
 
@@ -258,6 +262,7 @@
         scene.net.dog(msg.dog);
         applyMarket(msg.market);
         if (msg.race) race.apply(msg.race);
+        scene.net.stable(msg.stable);
         refreshOnline();
         // 새 연결은 서버에서 '보는 중' 으로 시작하므로, 숨김·가림 상태면 다시 알린다
         idleSent = false;
@@ -270,6 +275,7 @@
         }
         if (msg.dog) scene.net.dog(msg.dog);
         if (msg.market) applyMarket(msg.market);
+        if (msg.stable) scene.net.stable(msg.stable);
       },
       join(msg) {
         scene.net.add(msg.user);
@@ -294,6 +300,10 @@
       emote(msg) { if (msg.id !== myId) scene.playEmote(msg.id, msg.emote); },
       // 강아지가 새 주인을 만나면 짖는다
       dog(msg) { if (scene.net.dog(msg) && msg.owner) chat.say('dog', '멍!'); },
+      // 말을 훔쳐 탔다(stall)·돌려놓았다·관리인에게 뺏겼다(stall null)
+      mount(msg) { scene.net.mount(whoOf(msg.id), msg.stall); },
+      keeper(msg) { scene.net.keeper(msg); },
+      keeperSay(msg) { chat.say('keeper', msg.text); },
       chat(msg) {
         chat.say(whoOf(msg.id), msg.text);
         chat.addLog(msg.name || '?', msg.text);
@@ -322,6 +332,7 @@
   };
   scene.hooks.onStand = (x, y, dir) => net.send({ t: 'stand', x, y, dir });
   scene.hooks.onGo = (map, x, y, dir) => net.send({ t: 'go', map, x, y, dir });
+  scene.hooks.onStable = (act, stall) => net.send({ t: 'stable', act, stall });
   chat.onSend = (text) => net.send({ t: 'chat', text });
   race.onVote = (horse) => net.send({ t: 'vote', horse });
 

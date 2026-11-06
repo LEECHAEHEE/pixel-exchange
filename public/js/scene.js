@@ -364,9 +364,8 @@
   }
 
   // ---------- 말 탄 사람 ----------
-  // '경마장주인' 으로 들어오면 늘 말을 타고 다닌다. 말은 외형(look)이 아니라 따로 그리므로
+  // 경마장 마굿간에서 훔친 말을 탄 사람. 말은 외형(look)이 아니라 따로 그리므로
   // 아이템을 갈아입어도 옷만 바뀌고 말은 그대로다.
-  const RIDER_NAME = '경마장주인';
   const RIDE_H = 6;   // 말 등 높이. 사람은 이만큼 올라가 앉는다.
   const HORSE = { coat: '#8a5530', dark: '#5e3820', mane: '#2e1d14', saddle: '#b8302a' };
 
@@ -680,8 +679,19 @@
       x: SHOPKEEPER.x, y: SHOPKEEPER.y, dir: 'down', frame: 0
     };
 
+    // 경마장 관리인. 위치는 서버가 정하고(말 도둑을 쫓는다) 화면은 사람처럼 부드럽게 따라간다.
+    const keeper = {
+      active: false, name: '경마장 관리인',
+      look: { hair: '#3b2a20', shirt: '#e8e0c8', shirtLo: '#c8bfa4', pants: '#4a3a2a', vest: '#2f6b3a', cap: '#2f6b3a' },
+      x: 30, y: 50, tx: 30, ty: 50, dir: 'right', moving: false, frame: 0, anim: 0, map: 'racetrack'
+    };
+    const keeperHere = () => keeper.active && player.map === 'racetrack';
+    // 마굿간 칸마다 말이 있는지. places.js 가 칸 속 말을 그릴 때 읽는다.
+    const stable = { stalls: [] };
+    PX.stable = stable;
+
     // main.js 가 서버로 보내거나 창을 열 수 있게 앉기·일어나기·말 걸기·장소 이동을 알려준다
-    const hooks = { onSit() {}, onStand() {}, onTalk() {}, onGo() {} };
+    const hooks = { onSit() {}, onStand() {}, onTalk() {}, onGo() {}, onStable() {} };
 
     const inExchange = () => player.map === 'exchange';
 
@@ -706,6 +716,7 @@
       fade = FADE_S;
       // 강아지 소식은 강아지가 있는 장소에서만 받는다. 새 장소의 sync·dog 로 실제 자리에 바로 놓이게 꺼 둔다.
       dog.active = false;
+      keeper.active = false;
       hooks.onGo(id, player.x, player.y, player.dir);
     }
 
@@ -780,9 +791,22 @@
 
     const OPPOSITE = { up: 'down', down: 'up', left: 'right', right: 'left' };
 
+    // 경마장 마굿간 칸을 바라보며 붙어 서 있으면 그 칸 번호, 아니면 -1
+    function stallFacing() {
+      const S = area.stable;
+      if (!S || player.seat || player.dir !== 'up' || player.y > S.frontY + 8) return -1;
+      return S.stallX.findIndex(x => Math.abs(player.x - x) <= 9);
+    }
+
     // Space 하나로 말 걸기·앉기·일어나기를 모두 한다. 사람이 의자보다 우선.
     function act() {
       if (player.seat) { stand(); return; }
+      const stall = stallFacing();
+      if (stall >= 0) {
+        if (player.rider) hooks.onStable('return');
+        else if (stable.stalls[stall]) hooks.onStable('steal', stall);
+        return;
+      }
       if (shopFacing()) {
         shopkeeper.dir = OPPOSITE[player.dir];
         hooks.onTalk();
@@ -835,6 +859,8 @@
     });
 
     const PLAYER_SPEED = 55;
+    // 말을 타면 빨라진다. 관리인(server/stable.js, 66)보다 빨라 곧장 달아나면 따돌릴 수 있다.
+    const RIDE_SPEED = 82;
 
     function updatePlayer(dt) {
       player.moving = false;
@@ -845,7 +871,7 @@
       if (keys.has('up')) dy -= 1;
       if (keys.has('down')) dy += 1;
 
-      const step = PLAYER_SPEED * dt;
+      const step = (player.rider ? RIDE_SPEED : PLAYER_SPEED) * dt;
 
       if (!dx && !dy && player.route) {
         const t = player.route[0];
@@ -888,7 +914,7 @@
       if (r.seat) return;
       const dx = r.tx - r.x, dy = r.ty - r.y;
       const dist = Math.hypot(dx, dy);
-      const step = REMOTE_SPEED * dt;
+      const step = (r.rider ? RIDE_SPEED * 1.2 : REMOTE_SPEED) * dt;
       if (dist > 40 || dist <= step) {
         r.x = r.tx;
         r.y = r.ty;
@@ -904,6 +930,7 @@
       updatePlayer(dt);
       for (const r of remotes.values()) updateRemote(r, dt);
       if (dog.active) updateRemote(dog, dt);
+      if (keeper.active) updateRemote(keeper, dt);
     }
 
     function render() {
@@ -915,6 +942,7 @@
       const people = nearby();
       if (player.active) people.push(player);
       if (inExchange()) people.push(shopkeeper);
+      if (keeperHere()) people.push(keeper);
       // 장소가 따로 그릴 것(경마장의 말 등)을 사람과 같은 깊이 순서에 끼워 넣는다
       if (area.decorate) area.decorate(list, g, now.getTime() / 1000);
       for (const p of people) {
@@ -1013,6 +1041,8 @@
     function prompt() {
       if (player.seat) return 'seated';
       if (shopFacing()) return 'talk';
+      const stall = stallFacing();
+      if (stall >= 0) return player.rider ? 'return' : stable.stalls[stall] ? 'steal' : 'empty';
       return seatFacing() ? 'near' : 'free';
     }
 
@@ -1022,6 +1052,7 @@
     function anchor(who) {
       // 강아지는 키가 작아 앉은 화면 띠에는 그리지 않는다
       if (who === 'dog') return dogHere() && !player.seat ? { x: dog.x, y: dog.y - 12 } : null;
+      if (who === 'keeper') return keeperHere() ? { x: keeper.x, y: keeper.y - 19 } : null;
       const p = who === 'shop' ? (inExchange() ? shopkeeper : null)
         : who === 'me' ? (player.active ? player : null)
         : remotes.get(who);
@@ -1069,7 +1100,7 @@
         for (const s of seats) s.occupant = null;
         remotes.clear();
         const map = areas[me.map] ? me.map : 'exchange';
-        Object.assign(player, { active: true, x: me.x, y: me.y, dir: me.dir, seat: null, route: null, map, rider: me.name === RIDER_NAME });
+        Object.assign(player, { active: true, x: me.x, y: me.y, dir: me.dir, seat: null, route: null, map, mount: me.mount ?? null, rider: me.mount != null });
         area = areas[map];
         // 외형 = 서버가 정한 기본 외형 + 착용 아이템
         player.baseLook = me.look;
@@ -1083,15 +1114,50 @@
       },
 
       add(u) {
-        const r = { id: u.id, name: u.name, baseLook: u.look, map: u.map || 'exchange', x: u.x, y: u.y, tx: u.x, ty: u.y, dir: u.dir, moving: !!u.moving, frame: 0, anim: 0, seat: null, rider: u.name === RIDER_NAME };
+        const r = { id: u.id, name: u.name, baseLook: u.look, map: u.map || 'exchange', x: u.x, y: u.y, tx: u.x, ty: u.y, dir: u.dir, moving: !!u.moving, frame: 0, anim: 0, seat: null, mount: u.mount ?? null, rider: u.mount != null };
         setEquip(r, u.equip);
         remotes.set(u.id, r);
         if (u.seat != null) occupy(r, u.seat);
       },
 
+      // 누가 말을 훔쳐 탔거나(stall 번호) 내렸다(null). why: steal | return | caught
+      mount(id, stall) {
+        const p = id === 'me' ? player : remotes.get(id);
+        if (p) {
+          // 훔쳐 가면 칸이 비고, 돌려놓거나 뺏기면 원래 칸이 다시 찬다
+          if (stall != null) stable.stalls[stall] = false;
+          else if (p.mount != null) stable.stalls[p.mount] = true;
+          p.mount = stall;
+          p.rider = stall != null;
+        } else if (stall != null) {
+          stable.stalls[stall] = false;
+        }
+      },
+
+      // 마굿간 칸 상태와 관리인 위치를 한 번에(입장·경마장 진입 때)
+      stable(st) {
+        if (!st) return;
+        stable.stalls = st.stalls.slice();
+        if (st.keeper) net.keeper(st.keeper, true);
+      },
+
+      keeper(k, jump) {
+        if (jump || !keeper.active) {
+          keeper.x = k.x;
+          keeper.y = k.y;
+          keeper.active = true;
+        }
+        keeper.tx = k.x;
+        keeper.ty = k.y;
+        keeper.dir = k.dir;
+        keeper.moving = !!k.moving;
+      },
+
       remove(id) {
         const r = remotes.get(id);
         if (!r) return;
+        // 말을 탄 채 나가면 말은 마굿간으로 돌아간다
+        if (r.mount != null) stable.stalls[r.mount] = true;
         vacate(r);
         remotes.delete(id);
       },

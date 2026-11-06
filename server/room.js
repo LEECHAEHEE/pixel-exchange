@@ -4,6 +4,7 @@
 
 const { createDog } = require('./dog');
 const { createMafia } = require('./mafia');
+const { createStable } = require('./stable');
 
 // public/js/scene.js 의 의자 배치(3줄 × 14개)와 맞춰야 한다
 const SEAT_COUNT = 42;
@@ -79,11 +80,13 @@ function createRoom({ market, race }) {
       sendMap(msg.map, msg);
     }
   });
+  // 경마장 마굿간 말과 관리인. 말을 탔는지는 모두에게, 관리인 위치는 경마장을 보는 사람에게만 보낸다.
+  const stable = createStable({ users, broadcast, sendMap: (map, msg) => sendMap(map, msg) });
   let nextId = 1;
   let guestNo = 1;
 
   function publicOf(u) {
-    return { id: u.id, name: u.name, look: u.look, equip: u.equip, map: u.map, x: u.x, y: u.y, dir: u.dir, moving: u.moving, seat: u.seat };
+    return { id: u.id, name: u.name, look: u.look, equip: u.equip, map: u.map, x: u.x, y: u.y, dir: u.dir, moving: u.moving, seat: u.seat, mount: u.mount };
   }
 
   // 같은 메시지를 접속자 수만큼 직렬화하지 않도록 한 번만 문자열로 만든다
@@ -125,6 +128,7 @@ function createRoom({ market, race }) {
     }
     const msg = { t: 'sync', map: u.map, people, dog: dog.snapshot() };
     if (u.map === 'exchange') msg.market = market.snapshot();
+    if (u.map === 'racetrack') msg.stable = stable.snapshot();
     send(u, msg);
   }
 
@@ -134,7 +138,7 @@ function createRoom({ market, race }) {
     const u = {
       id, ws, name, look: randomLook(), equip: cleanEquip(rawEquip), map: 'exchange',
       x: 150 + Math.random() * 20, y: 170 + Math.random() * 6, dir: 'up', moving: false,
-      seat: null, lastChat: 0
+      seat: null, mount: null, lastChat: 0
     };
     users.set(id, u);
     send(u, {
@@ -144,7 +148,8 @@ function createRoom({ market, race }) {
       history,
       dog: dog.snapshot(),
       market: market.snapshot(),
-      race: race.snapshot()
+      race: race.snapshot(),
+      stable: stable.snapshot()
     });
     broadcast({ t: 'join', user: publicOf(u) }, id);
     console.log(`[room] join id=${id} name=${name} users=${users.size}`);
@@ -155,6 +160,7 @@ function createRoom({ market, race }) {
     if (!users.has(u.id)) return;
     if (u.seat !== null) seats[u.seat] = null;
     race.leave(u.id);
+    stable.leave(u);
     if (u.map === 'mafiazone') mafia.leave(u);
     users.delete(u.id);
     dog.forget(u.id);
@@ -230,6 +236,12 @@ function createRoom({ market, race }) {
         if (!u.idle) sendSync(u);
         return;
       }
+      // 마굿간 칸 앞에서 Space: 말을 훔쳐 타거나(steal) 탄 말을 돌려놓는다(return)
+      case 'stable': {
+        if (msg.act === 'steal') stable.steal(u, msg.stall);
+        else if (msg.act === 'return') stable.giveBack(u);
+        return;
+      }
       // 경마 투표. 결과(받아들인 번호 또는 거절 사유)는 본인에게만 알린다.
       case 'vote': {
         const r = race.vote(u, msg.horse);
@@ -288,6 +300,7 @@ function createRoom({ market, race }) {
     // 강아지가 있는 장소를 아무도 안 보고 주인도 없으면 강아지는 멈춰 둔다(돌아오면 sync 로 맞춘다).
     // 주인이 있으면 주인이 장소를 옮길 때 따라가야 하므로 계속 움직인다.
     if (dogWatchers > 0 || dog.snapshot().owner) dog.tick(BROADCAST_MS / 1000);
+    if (stable.busy()) stable.tick(BROADCAST_MS / 1000);
     // 객장을 보는 사람이 없으면 데모 시세도 쉰다
     if ((watchers > 0) !== exchangeWatched) {
       exchangeWatched = watchers > 0;
