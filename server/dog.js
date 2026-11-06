@@ -15,6 +15,8 @@ const IDLE_MS = 10000;
 const WANDER_SPEED = 25;
 const FOLLOW_SPEED = 62;
 const FOLLOW_GAP = 10;
+// 상태는 0.2초에 한 번까지만 보낸다. 화면이 받은 위치를 향해 걷는 속도로 따라가므로 그 사이는 보이지 않는다.
+const SEND_MS = 200;
 const BEHIND = { up: [0, 8], down: [0, -8], left: [FOLLOW_GAP, 0], right: [-FOLLOW_GAP, 0] };
 
 // 장소마다
@@ -72,6 +74,7 @@ function createDog({ users, broadcast }) {
   let path = [];
   let wait = 1;
   let sent = '';
+  let sentAt = -SEND_MS;
   const near = new Set();
   // 사람마다 마지막으로 위치가 바뀐 때. 10초 가만히 있는지 판단한다.
   const lastMove = new Map();
@@ -193,11 +196,13 @@ function createDog({ users, broadcast }) {
       }
     }
 
-    // 바뀐 것이 있을 때만 보낸다
+    // 바뀐 것이 있을 때만, 0.2초 간격으로 보낸다. 미룬 변화는 다음 차례에 마지막 상태로 나간다.
+    if (now - sentAt < SEND_MS - 1) return;
     const msg = snapshot();
     const key = `${msg.map},${msg.x},${msg.y},${msg.dir},${msg.moving},${msg.owner}`;
     if (key !== sent) {
       sent = key;
+      sentAt = now;
       broadcast(Object.assign({ t: 'dog' }, msg));
     }
   }

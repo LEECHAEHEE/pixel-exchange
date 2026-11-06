@@ -1,7 +1,9 @@
 // 시세 전광판. 외부(API 어댑터)는 이 모듈의 공개 메서드만 호출하면 된다.
 //
-//   board.setSymbols([{ code, name }])          표시 순서대로 종목 등록
-//   board.push(tick | tick[])                   { code, price, change, rate, name? }
+//   board.setSymbols([{ code, name, base? }])   표시 순서대로 종목 등록. base 는 기준가(전일 종가)
+//   board.setMeta({ code: { base?, name? } })   종목별 기준가·이름만 따로 알릴 때
+//   board.push(tick | tick[])                   { code, price, change?, rate?, name? } 또는 서버의 줄인 틱 [code, price, ...]
+//                                               change·rate 가 없으면 기준가로 계산한다
 //   board.setIndices([{ name, value, change, rate, volume?, amount? }])
 //                                               volume 은 만주, amount 는 억원 단위로 넘긴다
 //   board.setStatus(text, live)
@@ -77,6 +79,7 @@
     const known = new Set();
     const names = new Map();
     const latest = new Map();
+    const bases = new Map();
 
     let slots = [];
     const codeToSlot = new Map();
@@ -162,10 +165,22 @@
       if (order.length <= slots.length) bind(order.length - 1);
     }
 
+    // 서버는 틱을 [code, price, volume?, amount?] 로 줄여 보낸다. 등락은 기준가로 여기서 계산한다.
+    function toTick(t) {
+      const tick = Array.isArray(t) ? { code: t[0], price: t[1] } : t;
+      if (tick.change == null && typeof tick.price === 'number' && bases.has(tick.code)) {
+        const base = bases.get(tick.code);
+        const change = tick.price - base;
+        return Object.assign({}, tick, { change, rate: base ? change / base * 100 : null });
+      }
+      return tick;
+    }
+
     function flush() {
       scheduled = false;
       const now = performance.now();
-      for (const tick of pending.values()) {
+      for (const raw of pending.values()) {
+        const tick = toTick(raw);
         register(tick.code, tick.name);
         if (!known.has(tick.code)) continue;
         latest.set(tick.code, tick);
@@ -234,14 +249,29 @@
           order.push(s.code);
           known.add(s.code);
           if (s.name) names.set(s.code, s.name);
+          if (typeof s.base === 'number') bases.set(s.code, s.base);
         }
         rebuild();
       },
 
+      setMeta(meta) {
+        for (const [code, m] of Object.entries(meta || {})) {
+          if (!m) continue;
+          if (typeof m.base === 'number') bases.set(code, m.base);
+          if (m.name) {
+            names.set(code, m.name);
+            const idx = codeToSlot.get(code);
+            if (idx !== undefined) writeText(slots[idx], 'name', slots[idx].nm, m.name);
+          }
+        }
+      },
+
       push(ticks) {
-        if (!Array.isArray(ticks)) ticks = [ticks];
+        // 틱 하나는 객체, 줄인 틱은 배열이라 [code, price] 하나만 와도 틱 목록으로 본다
+        if (!Array.isArray(ticks) || (ticks.length && !Array.isArray(ticks[0]) && typeof ticks[0] !== 'object')) ticks = [ticks];
         for (const t of ticks) {
-          if (t && t.code != null) pending.set(t.code, t);
+          const code = Array.isArray(t) ? t[0] : t && t.code;
+          if (code != null) pending.set(code, t);
         }
         schedule();
       },
@@ -280,6 +310,7 @@
         known.clear();
         names.clear();
         latest.clear();
+        bases.clear();
         rebuild();
         board.setIndices(indexNames.map(name => ({ name })));
       }

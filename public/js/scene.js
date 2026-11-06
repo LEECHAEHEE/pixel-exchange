@@ -216,8 +216,8 @@
 
   // (x, y) 는 발끝 가운데. frame 0 은 정지, 1·2 는 걷기 동작.
   // pose: 감정표현 중일 때의 자세. { bow: 0|1|2 } 는 꾸벅 인사(머리를 숙인 칸 수).
-  function drawPerson(g, x, y, look, dir, frame, pose) {
-    rect(g, x - 4, y - 1, 8, 2, 'rgba(0,0,0,0.18)');
+  function drawPerson(g, x, y, look, dir, frame, pose, noShadow) {
+    if (!noShadow) rect(g, x - 4, y - 1, 8, 2, 'rgba(0,0,0,0.18)');
 
     const lUp = frame === 1 ? 1 : 0;
     const rUp = frame === 2 ? 1 : 0;
@@ -352,6 +352,76 @@
     }
 
     drawHeadwear(g, cx, hy, look, dir);
+  }
+
+  // ---------- 말 탄 사람 ----------
+  // '경마장주인' 으로 들어오면 늘 말을 타고 다닌다. 말은 외형(look)이 아니라 따로 그리므로
+  // 아이템을 갈아입어도 옷만 바뀌고 말은 그대로다.
+  const RIDER_NAME = '경마장주인';
+  const RIDE_H = 6;   // 말 등 높이. 사람은 이만큼 올라가 앉는다.
+  const HORSE = { coat: '#8a5530', dark: '#5e3820', mane: '#2e1d14', saddle: '#b8302a' };
+
+  // (x, y) 는 말 발끝 가운데. frame 은 사람과 같다(0 정지, 1·2 걸음).
+  function drawRider(g, x, y, look, dir, frame, pose) {
+    const H = HORSE;
+    const shoe = look.shoes || PAL.shoe;
+    rect(g, x - 9, y - 1, 18, 2, 'rgba(0,0,0,0.18)');
+    if (dir === 'left' || dir === 'right') {
+      const s = dir === 'right' ? 1 : -1;
+      const R = (px, py, w, h, c) => rect(g, s > 0 ? x + px : x - px - w + 1, y + py, w, h, c);
+      // 다리 넷: 걸을 때 앞뒤 다리가 번갈아 들린다
+      const up = frame === 1 ? [0, 1, 1, 0] : frame === 2 ? [1, 0, 0, 1] : [0, 0, 0, 0];
+      [-6, -4, 3, 5].forEach((lx, i) => {
+        R(lx, -5, 1, 4 - up[i], H.dark);
+        R(lx, -1 - up[i], 1, 1, PAL.outline);
+      });
+      // 몸통·목·머리(외곽선 먼저)
+      const body = [[-7, -10, 14, 5], [5, -14, 3, 6], [7, -16, 4, 3]];
+      for (const [px, py, w, h] of body) R(px - 1, py - 1, w + 2, h + 2, PAL.outline);
+      for (const [px, py, w, h] of body) R(px, py, w, h, H.coat);
+      R(-7, -6, 14, 1, H.dark);
+      R(5, -15, 1, 6, H.mane);
+      R(9, -15, 1, 1, PAL.outline);
+      R(10, -14, 1, 1, H.dark);
+      R(-9, -10, 2, 1, H.mane);
+      R(-10, -9, 2, 4, H.mane);
+      // 사람은 말 등 위에, 안장과 늘어뜨린 다리는 그 위에 덧그린다
+      drawPerson(g, x, y - RIDE_H, look, dir, 0, pose, true);
+      R(-3, -10, 6, 2, H.saddle);
+      R(-1, -9, 2, 3, look.pants);
+      R(-1, -6, 2, 1, shoe);
+      return;
+    }
+    // 앞모습·뒷모습: 좁은 몸통 양옆으로 사람 다리가 걸친다
+    const a = frame === 1 ? 1 : 0, b = frame === 2 ? 1 : 0;
+    for (const [lx, u] of [[-3, a], [2, b]]) {
+      rect(g, x + lx, y - 5, 1, 4 - u, H.dark);
+      rect(g, x + lx, y - 1 - u, 1, 1, PAL.outline);
+    }
+    parts(g, [[x - 3, y - 11, 6, 6, H.coat]]);
+    drawPerson(g, x, y - RIDE_H, look, dir, 0, pose, true);
+    rect(g, x - 4, y - 10, 8, 2, H.saddle);
+    rect(g, x - 5, y - 10, 1, 4, look.pants);
+    rect(g, x + 4, y - 10, 1, 4, look.pants);
+    rect(g, x - 5, y - 6, 1, 1, shoe);
+    rect(g, x + 4, y - 6, 1, 1, shoe);
+    if (dir === 'down') {
+      // 말 머리가 사람 앞에 온다
+      parts(g, [[x - 2, y - 10, 4, 6, H.coat]]);
+      rect(g, x - 2, y - 10, 4, 1, H.mane);
+      rect(g, x - 2, y - 8, 1, 1, PAL.outline);
+      rect(g, x + 1, y - 8, 1, 1, PAL.outline);
+      rect(g, x - 1, y - 5, 2, 1, H.dark);
+    } else {
+      // 뒷모습: 꼬리
+      rect(g, x - 1, y - 9, 2, 5, H.mane);
+    }
+  }
+
+  // 서 있는 사람 하나. 말을 탔으면 말과 함께 그린다.
+  function drawStanding(g, x, y, p, pose) {
+    if (p.rider) drawRider(g, x, y, p.look, p.dir, p.frame, pose);
+    else drawPerson(g, x, y, p.look, p.dir, p.frame, pose);
   }
 
   // 머리에 쓰는 것. x 는 머리 가운데(머리는 x-4 ~ x+3), hy 는 머리 꼭대기 줄.
@@ -623,6 +693,8 @@
       player.dir = spawn.dir;
       player.route = null;
       fade = FADE_S;
+      // 강아지 소식은 강아지가 있는 장소에서만 받는다. 새 장소의 sync·dog 로 실제 자리에 바로 놓이게 꺼 둔다.
+      dog.active = false;
       hooks.onGo(id, player.x, player.y, player.dir);
     }
 
@@ -841,7 +913,7 @@
           continue;
         }
         const px = Math.round(p.x), py = Math.round(p.y);
-        list.push({ key: py, draw: () => drawPerson(g, px, py, p.look, p.dir, p.frame, poseOf(p, nowMs)) });
+        list.push({ key: py, draw: () => drawStanding(g, px, py, p, poseOf(p, nowMs)) });
       }
       if (dogHere()) {
         const dx = Math.round(dog.x), dy = Math.round(dog.y);
@@ -911,7 +983,7 @@
         // 띠 안에서 머리 꼭대기가 2번째 줄에 오게 맞춘다(내 줄에 앉은 머리와 같은 높이)
         const pose = poseOf(p, performance.now());
         if (p.seat) drawSeated(sg, x - CHAIR_W / 2, 8, p.look, 0, pose);
-        else drawPerson(sg, x, 19, p.look, p.dir, p.frame, pose);
+        else drawStanding(sg, x, p.rider ? 19 + RIDE_H : 19, p, pose);
       }
     }
 
@@ -951,7 +1023,7 @@
         return { x, y: ST.y - 1 };
       }
       if (p.seat) return { x: p.seat.x + CHAIR_W / 2, y: p.seat.y - 9 };
-      return { x: p.x, y: p.y - 19 };
+      return { x: p.x, y: p.y - (p.rider ? 19 + RIDE_H : 19) };
     }
 
     function releaseKeys() {
@@ -986,7 +1058,7 @@
         for (const s of seats) s.occupant = null;
         remotes.clear();
         const map = areas[me.map] ? me.map : 'exchange';
-        Object.assign(player, { active: true, x: me.x, y: me.y, dir: me.dir, seat: null, route: null, map });
+        Object.assign(player, { active: true, x: me.x, y: me.y, dir: me.dir, seat: null, route: null, map, rider: me.name === RIDER_NAME });
         area = areas[map];
         // 외형 = 서버가 정한 기본 외형 + 착용 아이템
         player.baseLook = me.look;
@@ -1000,7 +1072,7 @@
       },
 
       add(u) {
-        const r = { id: u.id, name: u.name, baseLook: u.look, map: u.map || 'exchange', x: u.x, y: u.y, tx: u.x, ty: u.y, dir: u.dir, moving: !!u.moving, frame: 0, anim: 0, seat: null };
+        const r = { id: u.id, name: u.name, baseLook: u.look, map: u.map || 'exchange', x: u.x, y: u.y, tx: u.x, ty: u.y, dir: u.dir, moving: !!u.moving, frame: 0, anim: 0, seat: null, rider: u.name === RIDER_NAME };
         setEquip(r, u.equip);
         remotes.set(u.id, r);
         if (u.seat != null) occupy(r, u.seat);
@@ -1047,6 +1119,23 @@
         r.dir = dir;
       },
 
+      // 장소에 들어오거나 다시 볼 때 서버가 보낸 현재 모습(sync). 그동안 위치를 받지 않았으므로
+      // 따라 걷지 않고 그 자리에 바로 놓는다. 앉아 있는 사람은 그 의자에 그대로 앉힌다.
+      snap(id, map, x, y, dir, moving, seat) {
+        const r = remotes.get(id);
+        if (!r) return;
+        r.map = map;
+        r.x = r.tx = x;
+        r.y = r.ty = y;
+        r.dir = dir;
+        r.moving = !!moving;
+        if (seat == null) vacate(r);
+        else if (!r.seat || r.seat.index !== seat) {
+          vacate(r);
+          occupy(r, seat);
+        }
+      },
+
       // 서버가 앉기를 거절했을 때(다른 사람이 먼저 앉음)
       sitDenied() {
         if (player.seat) stand(true);
@@ -1059,8 +1148,13 @@
       // 강아지 상태. 처음 받을 때와 장소를 옮겼을 때는 그 자리에 바로 놓는다. 반환값: 주인이 바뀌었는지.
       dog(d) {
         if (!d) return false;
-        const changed = d.owner !== dog.owner;
         const map = d.map || 'exchange';
+        // 다른 장소의 강아지(떠난 장소에서 늦게 온 소식 포함)는 그리지 않는다
+        if (map !== player.map) {
+          dog.active = false;
+          return false;
+        }
+        const changed = d.owner !== dog.owner;
         if (!dog.active || map !== dog.map) {
           dog.x = d.x;
           dog.y = d.y;
@@ -1128,7 +1222,7 @@
   }
 
   // 인벤토리 미리보기가 같은 그림을 쓰도록 내보낸다
-  PX.sprites = { drawPerson, drawDog };
+  PX.sprites = { drawPerson, drawRider, drawDog };
 
   PX.createScene = createScene;
 })();

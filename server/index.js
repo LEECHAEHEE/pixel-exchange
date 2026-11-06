@@ -6,6 +6,8 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
+const zlib = require('zlib');
 const { WebSocketServer } = require('ws');
 const { createRoom } = require('./room');
 const { createMarket, startSource } = require('./market');
@@ -26,6 +28,32 @@ const MIME = {
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon'
 };
+// 압축해서 이득이 있는 글자 파일
+const GZIP_EXT = new Set(['.html', '.css', '.js', '.json', '.svg']);
+
+// 파일 내용·ETag·gzip 본을 메모리에 두고 재사용한다. 내보내는 양이 곧 호스팅 비용이라
+// 같은 파일을 매번 읽고 통째로 보내지 않는다. 파일이 바뀌면(크기·수정 시각) 다시 읽는다.
+const fileCache = new Map();
+
+function loadFile(file, cb) {
+  fs.stat(file, (err, st) => {
+    if (err || !st.isFile()) return cb(null);
+    const hit = fileCache.get(file);
+    if (hit && hit.mtimeMs === st.mtimeMs && hit.size === st.size) return cb(hit);
+    fs.readFile(file, (err2, data) => {
+      if (err2) return cb(null);
+      const ext = path.extname(file);
+      const entry = {
+        mtimeMs: st.mtimeMs, size: st.size, data,
+        type: MIME[ext] || 'application/octet-stream',
+        etag: '"' + crypto.createHash('sha1').update(data).digest('base64url').slice(0, 20) + '"',
+        gzip: GZIP_EXT.has(ext) ? zlib.gzipSync(data, { level: 9 }) : null
+      };
+      fileCache.set(file, entry);
+      cb(entry);
+    });
+  });
+}
 
 // public/ 밖의 파일(서버 코드 등)은 절대 내보내지 않는다
 function serveStatic(req, res) {
@@ -41,16 +69,27 @@ function serveStatic(req, res) {
     res.writeHead(403).end();
     return;
   }
-  fs.readFile(file, (err, data) => {
-    if (err) {
+  loadFile(file, (f) => {
+    if (!f) {
       res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }).end('Not found');
       return;
     }
-    res.writeHead(200, {
-      'Content-Type': MIME[path.extname(file)] || 'application/octet-stream',
-      'Cache-Control': 'no-cache'
-    });
-    res.end(data);
+    // no-cache: 브라우저는 매번 확인하되(배포가 바로 보이게), 안 바뀌었으면 304 로 본문 없이 끝낸다
+    const headers = { 'Content-Type': f.type, 'Cache-Control': 'no-cache', ETag: f.etag };
+    if (f.gzip) headers.Vary = 'Accept-Encoding';
+    const inm = req.headers['if-none-match'];
+    if (inm && inm.split(',').some(t => t.trim().replace(/^W\//, '') === f.etag)) {
+      res.writeHead(304, headers).end();
+      return;
+    }
+    let body = f.data;
+    if (f.gzip && /\bgzip\b/.test(req.headers['accept-encoding'] || '')) {
+      body = f.gzip;
+      headers['Content-Encoding'] = 'gzip';
+    }
+    headers['Content-Length'] = body.length;
+    res.writeHead(200, headers);
+    res.end(body);
   });
 }
 
@@ -65,7 +104,8 @@ const race = createRace({
   cycleMs: Number(process.env.RACE_CYCLE_SEC) * 1000 || undefined
 });
 room = createRoom({ market, race });
-market.attach(msg => room.broadcast(msg));
+// 전광판은 객장에만 있으므로 시세는 객장을 보는 사람에게만 보낸다
+market.attach(msg => room.sendMap('exchange', msg));
 startSource(market, process.env);
 startNews(list => market.setNews(list), process.env, () => market.snapshot().symbols.map(s => s.name));
 

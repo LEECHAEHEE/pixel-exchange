@@ -73,8 +73,18 @@ function createRoom({ market, race }) {
   const seats = new Array(SEAT_COUNT).fill(null);
   const dirty = new Set();
   const history = [];
-  const dog = createDog({ users, broadcast });
   const mafia = createMafia({ send });
+  // 강아지 소식은 강아지가 있는 장소를 보는 사람에게만 보낸다.
+  // 주인을 따라 장소를 옮긴 순간에는 떠난 장소에도 한 번 보내 그쪽 화면에서 사라지게 한다.
+  let dogMap = 'exchange';
+  const dog = createDog({
+    users,
+    broadcast: msg => {
+      if (msg.map !== dogMap) sendMap(dogMap, msg);
+      dogMap = msg.map;
+      sendMap(msg.map, msg);
+    }
+  });
   let nextId = 1;
   let guestNo = 1;
 
@@ -92,6 +102,36 @@ function createRoom({ market, race }) {
 
   function send(u, msg) {
     if (u.ws.readyState === 1) u.ws.send(JSON.stringify(msg));
+  }
+
+  // 그 장소를 지금 보고 있는 사람. 숨긴 탭·가림 화면(idle)은 그려지지 않으므로 빼고,
+  // 다시 볼 때 sync 로 한 번에 맞춘다.
+  function watching(u, map) {
+    return u.map === map && !u.idle && u.ws.readyState === 1;
+  }
+
+  // 장소 안에서만 의미 있는 것(위치·강아지·시세)은 그 장소를 보는 사람에게만 보낸다. 내보내는 양이 곧 호스팅 비용이다.
+  function sendMap(map, msg, exceptId) {
+    let data = null;
+    for (const u of users.values()) {
+      if (u.id === exceptId || !watching(u, map)) continue;
+      if (data === null) data = JSON.stringify(msg);
+      u.ws.send(data);
+    }
+  }
+
+  // 장소에 들어오거나 다시 볼 때 한 번 보내는 그 장소의 현재 모습.
+  // 안 보는 동안 받지 않은 위치·강아지·시세를 여기서 한꺼번에 채운다.
+  function sendSync(u) {
+    const people = [];
+    for (const o of users.values()) {
+      if (o !== u && o.map === u.map) {
+        people.push([o.id, Math.round(o.x * 10) / 10, Math.round(o.y * 10) / 10, o.dir, o.moving ? 1 : 0, o.seat]);
+      }
+    }
+    const msg = { t: 'sync', map: u.map, people, dog: dog.snapshot() };
+    if (u.map === 'exchange') msg.market = market.snapshot();
+    send(u, msg);
   }
 
   function join(ws, rawName, rawEquip) {
@@ -186,6 +226,14 @@ function createRoom({ market, race }) {
         // 마피아존 입장/퇴장 → 마피아 게임 참가/이탈
         if (prevMap === 'mafiazone' && u.map !== 'mafiazone') mafia.leave(u);
         if (u.map === 'mafiazone' && prevMap !== 'mafiazone') mafia.enter(u);
+        if (!u.idle) sendSync(u);
+        return;
+      }
+      // 탭을 숨기거나 X 로 가렸다(on: true) / 다시 본다(on: false). 보는 동안 놓친 것은 sync 로 채운다.
+      case 'idle': {
+        if (typeof msg.on !== 'boolean' || msg.on === !!u.idle) return;
+        u.idle = msg.on;
+        if (!u.idle) sendSync(u);
         return;
       }
       // 경마 투표. 결과(받아들인 번호 또는 거절 사유)는 본인에게만 알린다.
@@ -232,20 +280,39 @@ function createRoom({ market, race }) {
     }
   }
 
-  // 위치는 0.1초마다 바뀐 사람만 모아 한 번에 보낸다. 접속자가 많아도 메시지 수가 늘지 않는다.
+  // 위치는 0.1초마다 바뀐 사람만 장소별로 모아, 그 장소를 보는 사람에게 한 번에 보낸다.
+  // 접속자가 많아도 메시지 수가 늘지 않는다.
+  let exchangeWatched = false;
   setInterval(() => {
-    dog.tick(BROADCAST_MS / 1000);
+    let watchers = 0;
+    let dogWatchers = 0;
+    const dm = dog.snapshot().map;
+    for (const u of users.values()) {
+      if (watching(u, 'exchange')) watchers++;
+      if (watching(u, dm)) dogWatchers++;
+    }
+    // 강아지가 있는 장소를 아무도 안 보고 주인도 없으면 강아지는 멈춰 둔다(돌아오면 sync 로 맞춘다).
+    // 주인이 있으면 주인이 장소를 옮길 때 따라가야 하므로 계속 움직인다.
+    if (dogWatchers > 0 || dog.snapshot().owner) dog.tick(BROADCAST_MS / 1000);
+    // 객장을 보는 사람이 없으면 데모 시세도 쉰다
+    if ((watchers > 0) !== exchangeWatched) {
+      exchangeWatched = watchers > 0;
+      market.setWatched(exchangeWatched);
+    }
+
     if (dirty.size === 0) return;
-    const list = [];
+    const byMap = new Map();
     for (const id of dirty) {
       const u = users.get(id);
-      if (u) list.push([u.id, Math.round(u.x * 10) / 10, Math.round(u.y * 10) / 10, u.dir, u.moving ? 1 : 0]);
+      if (!u) continue;
+      if (!byMap.has(u.map)) byMap.set(u.map, []);
+      byMap.get(u.map).push([u.id, Math.round(u.x * 10) / 10, Math.round(u.y * 10) / 10, u.dir, u.moving ? 1 : 0]);
     }
     dirty.clear();
-    if (list.length) broadcast({ t: 'moves', list });
+    for (const [map, list] of byMap) sendMap(map, { t: 'moves', list });
   }, BROADCAST_MS);
 
-  return { join, leave, handle, broadcast, get size() { return users.size; } };
+  return { join, leave, handle, broadcast, sendMap, get size() { return users.size; } };
 }
 
 module.exports = { createRoom };

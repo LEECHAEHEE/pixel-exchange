@@ -2,18 +2,41 @@
 // 새로 들어온 사람에게는 snapshot() 으로 지금까지의 마지막 값을 한 번에 보낸다.
 //
 // 공급원은 아래 메서드로만 값을 넣는다(화면의 board 메서드와 모양이 같다).
-//   market.setSymbols([{ code, name }])
-//   market.push(tick | tick[])           { code, price, change, rate, name? }
+//   market.setSymbols([{ code, name, base? }])   base 는 기준가(전일 종가)
+//   market.push(tick | tick[])           { code, price, change?, rate?, name?, volume?, amount? }
 //   market.setIndices([{ name, value, change, rate, volume?, amount? }])
 //   market.setTicker(text)               공급원 안내 문구. 뉴스 헤드라인 뒤에 붙는다
 //   market.setNews([{ src, title, time }])  경제 뉴스 헤드라인 (server/news.js)
 //   market.setStatus(text, live)
+//
+// 공급원은 객체 모양 그대로 넣고, 보낼 때만 줄인다(시세가 내보내는 양의 대부분이라).
+//   틱은 [code, price] (거래량·대금이 있으면 [code, price, volume, amount]).
+//   등락폭·등락률은 화면이 기준가로 계산하므로 기준가는 symbols 에 한 번만 싣는다.
+//   틱에서 처음 알게 된(또는 바뀐) 기준가·종목명은 그 ticks 메시지의 meta { code: { base?, name? } } 로 한 번 보낸다.
 'use strict';
 
 const WebSocket = require('ws');
 const { tossSource, readKeys } = require('./toss');
 
 const FLUSH_MS = 200;
+// 등록 안 된 종목이 끝없이 들어와도 메모리가 늘지 않게 막는 상한(화면 board.js 와 같다)
+const MAX_META = 1000;
+
+const round2 = v => (typeof v === 'number' ? Math.round(v * 100) / 100 : v);
+
+function compactTick(t) {
+  const out = [t.code, t.price];
+  if (t.volume != null || t.amount != null) out.push(t.volume ?? null, t.amount ?? null);
+  return out;
+}
+
+// 화면은 소수 둘째 자리까지만 보이고 거래량·대금은 정수로 반올림해 보인다
+function compactIndex(it) {
+  const out = { name: it.name, value: round2(it.value), change: round2(it.change), rate: round2(it.rate) };
+  if (it.volume != null) out.volume = Math.round(it.volume);
+  if (it.amount != null) out.amount = Math.round(it.amount);
+  return out;
+}
 
 // 'HH:MM' (KST)
 function kstTime(ms) {
@@ -22,6 +45,8 @@ function kstTime(ms) {
 
 function createMarket() {
   let symbols = [];
+  // 종목별 기준가·이름. symbols 에 없는 종목(틱으로만 들어온 것)도 여기서 기억한다.
+  const meta = new Map();
   const latest = new Map();
   const indices = new Map();
   let ticker = '';
@@ -41,26 +66,81 @@ function createMarket() {
   }
 
   const pending = new Map();
+  let pendingMeta = null;
   let publish = () => {};
+  // 객장을 보는 사람이 있는지. 데모 공급원은 아무도 안 볼 때 쉰다.
+  let watched = false;
+  const watchers = [];
+
+  // 틱에 실려 온 기준가·이름이 처음이거나 바뀌었으면 다음 ticks 에 meta 로 싣는다.
+  // 기준가는 price - change, change 가 없으면 등락률로 거꾸로 구한다.
+  function baseOf(t) {
+    if (typeof t.price !== 'number') return undefined;
+    if (typeof t.change === 'number') return round2(t.price - t.change);
+    if (typeof t.rate === 'number' && t.rate > -100) return round2(t.price / (1 + t.rate / 100));
+    return undefined;
+  }
+
+  function learn(t) {
+    const m = meta.get(t.code);
+    if (!m && meta.size >= MAX_META) return;
+    const base = baseOf(t);
+    const diff = {};
+    if (base !== undefined && (!m || m.base === undefined || Math.abs(m.base - base) > 0.005)) diff.base = base;
+    if (t.name && (!m || m.name !== t.name)) diff.name = t.name;
+    if (!Object.keys(diff).length) return;
+    meta.set(t.code, Object.assign({}, m, diff));
+    pendingMeta = pendingMeta || {};
+    pendingMeta[t.code] = Object.assign(pendingMeta[t.code] || {}, diff);
+  }
 
   // 같은 종목 틱이 0.2초 안에 여러 번 오면 마지막 값만 보낸다
   setInterval(() => {
     if (pending.size === 0) return;
-    const ticks = [...pending.values()];
+    const msg = { t: 'ticks', ticks: [...pending.values()].map(compactTick) };
+    if (pendingMeta) msg.meta = pendingMeta;
     pending.clear();
-    publish({ t: 'ticks', ticks });
+    pendingMeta = null;
+    publish(msg);
   }, FLUSH_MS);
 
   return {
-    // room 이 만들어진 뒤 broadcast 를 연결한다
+    // room 이 만들어진 뒤 '객장을 보는 사람에게 보내기' 를 연결한다
     attach(fn) { publish = fn; },
 
+    // room 이 객장을 보는 사람이 생기고 없어질 때 알린다
+    setWatched(v) {
+      if (v === watched) return;
+      watched = v;
+      for (const fn of watchers) fn(watched);
+    },
+    // 공급원이 쉬고 다시 시작하는 데 쓴다. 등록할 때 지금 상태로 한 번 부른다.
+    onWatch(fn) {
+      watchers.push(fn);
+      fn(watched);
+    },
+
     snapshot() {
-      return { symbols, ticks: [...latest.values()], indices: [...indices.values()], ticker, status };
+      // symbols 에 없는 종목의 기준가·이름은 meta 로 함께 보낸다
+      const listed = new Set(symbols.map(s => s.code));
+      const extra = {};
+      for (const [code, m] of meta) if (!listed.has(code)) extra[code] = m;
+      return {
+        symbols, meta: extra, ticks: [...latest.values()].map(compactTick),
+        indices: [...indices.values()], ticker, status
+      };
     },
 
     setSymbols(list) {
-      symbols = list.map(s => ({ code: s.code, name: s.name }));
+      symbols = list.map(s => {
+        const out = { code: s.code, name: s.name };
+        if (typeof s.base === 'number') out.base = s.base;
+        const m = Object.assign({}, meta.get(s.code));
+        if (s.name) m.name = s.name;
+        if (out.base !== undefined) m.base = out.base;
+        meta.set(s.code, m);
+        return out;
+      });
       publish({ t: 'symbols', symbols });
     },
 
@@ -68,14 +148,16 @@ function createMarket() {
       if (!Array.isArray(ticks)) ticks = [ticks];
       for (const t of ticks) {
         if (!t || t.code == null) continue;
+        learn(t);
         latest.set(t.code, t);
         pending.set(t.code, t);
       }
     },
 
     setIndices(list) {
-      for (const it of list) indices.set(it.name, it);
-      publish({ t: 'indices', indices: list });
+      const out = list.map(compactIndex);
+      for (const it of out) indices.set(it.name, it);
+      publish({ t: 'indices', indices: out });
     },
 
     // 시세 공급원 안내 문구(데모·토스 등)
@@ -123,7 +205,7 @@ function demoSource(market) {
   market.setStatus('DEMO', true);
   market.setTicker('데모 모드 · 가짜 시세입니다 · 서버에서 모든 접속자에게 같은 시세를 보냅니다');
 
-  setInterval(() => {
+  function step() {
     const ticks = [];
     for (const s of stocks) {
       if (Math.random() > 0.3) continue;
@@ -140,7 +222,19 @@ function demoSource(market) {
       it.amount += Math.random() * 4;
       return { name: it.name, value: it.value, change, rate: change / it.base * 100, volume: it.volume, amount: it.amount };
     }));
-  }, 250);
+  }
+
+  // 객장을 보는 사람이 없으면 가짜 시세를 만들지 않는다. 돌아오면 바로 한 번 움직이고 다시 돈다.
+  let timer = null;
+  market.onWatch((watched) => {
+    if (watched && !timer) {
+      step();
+      timer = setInterval(step, 250);
+    } else if (!watched && timer) {
+      clearInterval(timer);
+      timer = null;
+    }
+  });
 }
 
 // 실제 증권사 API 자리. MARKET_WS_URL 을 주면 이 공급원을 쓴다.
