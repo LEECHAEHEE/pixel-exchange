@@ -46,6 +46,13 @@ body {
   image-rendering: crisp-edges;
   cursor: pointer;
 }
+/* 전광판 위에 겹쳐 그리는 효과(앉은 화면의 담배 연기). 클릭은 아래로 통과시킨다. */
+.stage canvas.fx {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
 
 /* 위치는 화면 배율(--ps), 전광판 안쪽 크기는 글자 배율을 곱한 --s 를 쓴다 */
 .sign, .board, .label, .race-panel {

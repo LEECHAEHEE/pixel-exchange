@@ -487,116 +487,70 @@
 
   // 서 있는 사람 하나. 말을 탔으면 말과 함께 그린다.
   // look 을 주면 그 모습으로 그린다(풋살장 팀 유니폼처럼 그 자리에서만 바뀌는 옷).
-  function drawStanding(g, x, y, p, pose, look) {
+  // noSmoke 면 담배만 그리고 연기는 그리지 않는다(앉은 화면 띠처럼 연기를 따로 그리는 곳).
+  function drawStanding(g, x, y, p, pose, look, noSmoke) {
     if (p.rider) drawRider(g, x, y, look || p.look, p.dir, p.frame, pose);
     else drawPerson(g, x, y, look || p.look, p.dir, p.frame, pose);
-    if (pose && pose.smoke != null && !p.rider) drawCig(g, x, y, p.dir, pose.smoke);
+    if (pose && pose.smoke != null && !p.rider) drawCig(g, x, y, p.dir, pose.smoke, noSmoke);
   }
 
   // ---------- 담배 ----------
 
-  // 3초 동안 세 모금. 한 모금(1초)은 앞 0.5초에 손을 입에 대고 빨고(불이 밝아짐), 뒤 0.5초에 손을 내리고 연기를 내뿜는다.
+  // 2초 동안 입에 문 채로 피운다(손은 움직이지 않는다). 불씨가 깜빡이고 끝에서 연기가 오르며,
   // 피울수록 담배가 짧아진다. 다 피면 scene 이 꽁초를 발 앞에 떨어뜨린다(drawButt).
-  const SMOKE_MS = 3000;
-  const PUFF_MS = 1000;
+  const SMOKE_MS = 2000;
   const CIG = { paper: '#f4f1e6', filter: '#d89a4a', ember: '#e8502a', emberHi: '#ffd23a', emberLo: '#a8301e' };
   const SMOKE_LIFE = 1100;
 
-  // 사람 (x, y) 기준 담배 끝(불) 위치와 입 위치. left 는 right 를 좌우로 뒤집는다(x-0.5 대칭).
-  // up(뒷모습)은 담배가 머리에 가려 안 보이고 연기만 머리 위로 오른다.
+  // 사람 (x, y) 기준 담배 끝(불) 위치. left 는 right 를 좌우로 뒤집는다(x-0.5 대칭).
+  // up(뒷모습)은 담배가 머리에 가려 안 보이고 연기만 머리 위로 오른다. 뒤통수·모자에 겹치지 않게 머리 꼭대기보다 두 칸 위에서 시작한다.
+  // 앉은 사람은 머리 꼭대기가 의자 y-6 이므로 y 를 의자 y+11 로 주면 같은 자리가 된다.
   function cigAt(x, y, dir, t) {
-    const inhale = t % PUFF_MS < PUFF_MS / 2;
-    const len = Math.max(1, 3 - Math.floor(t / PUFF_MS));
+    const len = Math.max(1, 3 - Math.floor(t / (SMOKE_MS / 3)));
     const s = dir === 'left' ? -1 : 1;
     const mx = (px) => (s > 0 ? px : 2 * x - 1 - px);
-    if (dir === 'up') return { inhale, len, tip: null, mouth: [x - 1, y - 18], s: 1, mx };
-    if (dir === 'down') {
-      return inhale
-        ? { inhale, len, mouth: [x, y - 12], tip: [x + 1 + len, y - 12], s, mx: (px) => px }
-        : { inhale, len, mouth: [x, y - 12], tip: [x + 5 + len, y - 6], s, mx: (px) => px };
-    }
-    return inhale
-      ? { inhale, len, mouth: [mx(x + 3), y - 12], tip: [mx(x + 5 + len), y - 12], s, mx }
-      : { inhale, len, mouth: [mx(x + 3), y - 12], tip: [mx(x + 1 + len), y - 6], s, mx };
+    if (dir === 'up') return { len, tip: [x - 1, y - 19], mx };
+    if (dir === 'down') return { len, tip: [x + 1 + len, y - 12], mx: (px) => px };
+    return { len, tip: [mx(x + 5 + len), y - 12], mx };
   }
 
-  function drawCig(g, x, y, dir, t) {
-    const c = cigAt(x, y, dir, t);
-    const dot = (px, py, col) => rect(g, c.mx(px), py, 1, 1, col);
-    const ember = c.inhale ? CIG.emberHi : (Math.floor(t / 120) % 2 ? CIG.ember : CIG.emberLo);
-    if (dir === 'down') {
-      if (c.inhale) {
-        // 입에 문 담배, 담배를 잡은 손가락, 들어 올린 팔
-        rect(g, x, y - 12, 1, 1, CIG.filter);
-        rect(g, x + 1, y - 12, c.len, 1, CIG.paper);
-        rect(g, x + 1 + c.len, y - 12, 1, 1, ember);
-        rect(g, x + 1, y - 11, 2, 1, PAL.skin);
-        rect(g, x + 3, y - 10, 1, 1, PAL.skin);
-      } else {
-        // 내린 손에 든 담배. 흰 바닥·흰 옷 위에서도 보이게 위아래와 끝에 외곽선을 두른다.
-        rect(g, x + 5, y - 7, c.len + 1, 1, PAL.outline);
-        rect(g, x + 5, y - 5, c.len + 1, 1, PAL.outline);
-        rect(g, x + 6 + c.len, y - 6, 1, 1, PAL.outline);
-        rect(g, x + 5, y - 6, c.len, 1, CIG.paper);
-        rect(g, x + 5 + c.len, y - 6, 1, 1, ember);
-      }
-    } else if (dir !== 'up') {
-      if (c.inhale) {
-        dot(x + 4, y - 12, CIG.filter);
-        for (let i = 0; i < c.len; i++) dot(x + 5 + i, y - 12, CIG.paper);
-        dot(x + 5 + c.len, y - 12, ember);
-        dot(x + 4, y - 11, PAL.skin);
-        dot(x + 3, y - 10, PAL.skin);
-      } else {
-        for (let i = 0; i <= c.len + 1; i++) {
-          dot(x + 1 + i, y - 7, PAL.outline);
-          dot(x + 1 + i, y - 5, PAL.outline);
-        }
-        dot(x + 2 + c.len, y - 6, PAL.outline);
-        for (let i = 0; i < c.len; i++) dot(x + 1 + i, y - 6, CIG.paper);
-        dot(x + 1 + c.len, y - 6, ember);
-      }
+  function drawCig(g, x, y, dir, t, noSmoke) {
+    if (dir !== 'up') {
+      const c = cigAt(x, y, dir, t);
+      const dot = (px, py, col) => rect(g, c.mx(px), py, 1, 1, col);
+      const ember = [CIG.emberHi, CIG.ember, CIG.emberLo, CIG.ember][Math.floor(t / 150) % 4];
+      // 앞모습은 입(x, y-12)에서 오른쪽으로, 옆모습은 얼굴 앞(x+4)에서 앞으로 문다
+      const from = dir === 'down' ? x : x + 4;
+      dot(from, y - 12, CIG.filter);
+      for (let i = 1; i <= c.len; i++) dot(from + i, y - 12, CIG.paper);
+      dot(from + 1 + c.len, y - 12, ember);
     }
-    drawSmoke(g, x, y, dir, t);
+    if (!noSmoke) drawSmoke(g, x, y, dir, t);
   }
 
-  // 연기는 생긴 자리에 머물며 올라가야 하므로, 지금까지 생긴 연기 알갱이를 생긴 시각의 위치에서 계산해 그린다.
-  //   불에서 0.2초마다 가는 연기 한 줄, 내뿜을 때마다 입에서 앞쪽으로 퍼지는 큰 연기 세 덩이
+  // 연기는 생긴 자리에 머물며 올라가야 하므로, 지금까지 생긴 연기 알갱이를 생긴 시각의 불 위치에서 계산해 그린다.
+  // 불에서 0.2초마다 가는 연기 한 줄이 흔들리며 오르고 옅어진다.
   function drawSmoke(g, x, y, dir, t) {
-    const puff = (px, py, age, size) => {
-      const a = (1 - age / SMOKE_LIFE) * 0.7;
-      g.fillStyle = `rgba(225,225,228,${a.toFixed(2)})`;
-      g.fillRect(Math.round(px), Math.round(py), size, size);
-    };
     for (let born = 0; born <= t; born += 200) {
       const age = t - born;
       if (age >= SMOKE_LIFE) continue;
-      const c = cigAt(x, y, dir, born);
-      const from = c.tip || c.mouth;
-      puff(from[0] + Math.sin(born / 170 + age / 220), from[1] - 1 - age / 90, age, 1);
-    }
-    for (let k = 0; k < SMOKE_MS / PUFF_MS; k++) {
-      const born = k * PUFF_MS + PUFF_MS / 2;
-      const age = t - born;
-      if (age < 0 || age >= SMOKE_LIFE) continue;
-      const c = cigAt(x, y, dir, born);
-      for (let j = 0; j < 3; j++) {
-        const spread = (j - 1) * 2 * (age / SMOKE_LIFE);
-        puff(c.mouth[0] + c.s * (1 + age / 110) + spread, c.mouth[1] - age / 130 - j, age, 2);
-      }
+      const tip = cigAt(x, y, dir, born).tip;
+      const a = (1 - age / SMOKE_LIFE) * 0.7;
+      g.fillStyle = `rgba(225,225,228,${a.toFixed(2)})`;
+      g.fillRect(Math.round(tip[0] + Math.sin(born / 170 + age / 220)), Math.round(tip[1] - 1 - age / 90), 1, 1);
     }
   }
 
-  // 바닥에 버린 꽁초. 처음 1.5초는 불씨와 가는 연기, 마지막 0.6초는 깜빡이다 사라진다.
-  const BUTT_MS = 3000;
+  // 바닥에 버린 꽁초. 처음 1초는 불씨와 가는 연기, 마지막 0.5초는 깜빡이다 사라진다.
+  const BUTT_MS = 2000;
   function drawButt(g, x, y, age) {
-    if (age > BUTT_MS - 600 && Math.floor(age / 100) % 2) return;
+    if (age > BUTT_MS - 500 && Math.floor(age / 100) % 2) return;
     rect(g, x - 2, y - 1, 5, 3, PAL.outline);
     rect(g, x - 1, y, 1, 1, CIG.filter);
     rect(g, x, y, 1, 1, CIG.paper);
-    rect(g, x + 1, y, 1, 1, age < 1500 ? (Math.floor(age / 150) % 2 ? CIG.ember : CIG.emberLo) : '#7a7a7a');
-    if (age < 1500) {
-      const a = (1 - age / 1500) * 0.6;
+    rect(g, x + 1, y, 1, 1, age < 1000 ? (Math.floor(age / 150) % 2 ? CIG.ember : CIG.emberLo) : '#7a7a7a');
+    if (age < 1000) {
+      const a = (1 - age / 1000) * 0.6;
       g.fillStyle = `rgba(225,225,228,${a.toFixed(2)})`;
       g.fillRect(x + 1 + Math.round(Math.sin(age / 200)), y - 2 - Math.floor((age % 600) / 120), 1, 1);
     }
@@ -803,6 +757,14 @@
   function createScene(canvas) {
     const screen = canvas.getContext('2d');
     screen.imageSmoothingEnabled = false;
+    // 전광판(DOM)보다 위에 그릴 것을 위한 투명 캔버스. 앉은 화면에서 머리 위 담배 연기가 전광판에 가리지 않게 한다.
+    const fx = document.createElement('canvas');
+    fx.width = W;
+    fx.height = H;
+    fx.className = 'fx';
+    canvas.parentNode.appendChild(fx);
+    const fxg = fx.getContext('2d');
+    let fxUsed = false;
     // 장면은 늘 world 에 그리고, 화면에는 시점에 맞게 옮겨 붙인다
     const { c: world, g } = makeCanvas(W, H);
     const bg = paintBackground();
@@ -1184,6 +1146,10 @@
         if (near) drawMarker(g, near.x + 7, near.y - 13, t);
       }
 
+      if (fxUsed) {
+        fxg.clearRect(0, 0, W, H);
+        fxUsed = false;
+      }
       if (player.seat) composeSeated(player.seat);
       else screen.drawImage(world, 0, 0);
       if (fade > 0) {
@@ -1206,23 +1172,37 @@
       const oy = 8 - seat.y;
 
       rect(sg, 0, 0, sw, sh, PAL.ceiling);
+      // 띠는 머리 바로 위까지만 있어 연기가 잘리므로, 연기는 모아 두었다가 띠를 붙인 뒤 전광판 위에 그린다
+      const smokes = [];
       // 앞사람을 먼저 그려 내 줄 사람·의자 뒤로 지나가게 한다
-      drawFront(sg, seat, sx, sw);
+      drawFront(sg, seat, sx, sw, smokes);
       for (const s of seats) {
         if (s.y !== seat.y || s.x + CHAIR_W < sx || s.x > sx + sw) continue;
         const x = s.x - sx;
         const y = s.y + oy;
-        if (s.occupant) drawSeated(sg, x, y, s.occupant.look, 0, poseOf(s.occupant, performance.now()));
+        if (s.occupant) {
+          const pose = poseOf(s.occupant, performance.now());
+          drawSeated(sg, x, y, s.occupant.look, 0, pose);
+          if (pose && pose.smoke != null) smokes.push([x + 7, y + 11, 'up', pose.smoke]);
+        }
         sg.drawImage(chairImg, x, y);
       }
 
       screen.drawImage(seatedBg, 0, 0);
       screen.drawImage(strip.c, 0, ST.y, W, ST.h);
+      if (smokes.length) {
+        fxg.save();
+        fxg.translate(0, ST.y);
+        fxg.scale(ST.zoom, ST.zoom);
+        for (const [x, y, dir, t] of smokes) drawSmoke(fxg, x, y, dir, t);
+        fxg.restore();
+        fxUsed = true;
+      }
     }
 
     // 나와 전광판 사이에 있는 사람(앞줄에 앉았거나 앞쪽에 서 있는 사람)을 내 줄과 같은 높이·크기로 그린다.
     // 원근 없이 머리 위치를 내 줄에 앉은 사람과 맞추므로, 내 줄 사람이 앉은 자리에서는 가려진다.
-    function drawFront(sg, seat, sx, sw) {
+    function drawFront(sg, seat, sx, sw, smokes) {
       const list = [];
       for (const p of [shopkeeper, ...nearby()]) {
         if (!inFrontOf(seat, p)) continue;
@@ -1235,8 +1215,14 @@
       for (const { p, x } of list) {
         // 띠 안에서 머리 꼭대기가 2번째 줄에 오게 맞춘다(내 줄에 앉은 머리와 같은 높이)
         const pose = poseOf(p, performance.now());
-        if (p.seat) drawSeated(sg, x - CHAIR_W / 2, 8, p.look, 0, pose);
-        else drawStanding(sg, x, p.rider ? 19 + RIDE_H : 19, p, pose);
+        const smoking = pose && pose.smoke != null;
+        if (p.seat) {
+          drawSeated(sg, x - CHAIR_W / 2, 8, p.look, 0, pose);
+          if (smoking) smokes.push([x - CHAIR_W / 2 + 7, 8 + 11, 'up', pose.smoke]);
+        } else {
+          drawStanding(sg, x, p.rider ? 19 + RIDE_H : 19, p, pose, null, true);
+          if (smoking && !p.rider) smokes.push([x, 19, p.dir, pose.smoke]);
+        }
       }
     }
 
