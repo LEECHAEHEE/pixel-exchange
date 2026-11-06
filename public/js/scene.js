@@ -227,12 +227,13 @@
     const bow = pose && pose.bow ? pose.bow : 0;
     const lean = bow === 2 ? (dir === 'left' ? -1 : dir === 'right' ? 1 : 0) : 0;
     const cx = x + lean;
+    // 키 14칸: 머리 6(y-15 ~ y-10) · 몸통 5(y-9 ~ y-5) · 다리 3(y-4 ~ y-2).
     // 다리 바깥 테두리가 상의 양 끝선(x-4, x+3)에 오도록 두 칸 폭 다리 사이에 두 칸을 비운다
     const p = [
       [x - 3, y - 4, 2, 3 - lUp, look.pants],
       [x + 1, y - 4, 2, 3 - rUp, look.pants],
-      [x - 4, y - 10, 8, 6, look.shirt],
-      [cx - 4, y - 17 + bow, 8, 7, PAL.skin]
+      [x - 4, y - 9, 8, 5, look.shirt],
+      [cx - 4, y - 15 + bow, 8, 6, PAL.skin]
     ];
     parts(g, p);
 
@@ -264,22 +265,22 @@
     // 상의 위에 덧그리는 것: 조끼, 넥타이, 가슴 무늬, 트레이닝 옆줄
     if (look.vest) {
       if (dir === 'down') {
-        rect(g, x - 4, y - 10, 3, 6, look.vest);
-        rect(g, x + 1, y - 10, 3, 6, look.vest);
+        rect(g, x - 4, y - 9, 3, 5, look.vest);
+        rect(g, x + 1, y - 9, 3, 5, look.vest);
       } else {
-        rect(g, x - 4, y - 10, 8, 6, look.vest);
+        rect(g, x - 4, y - 9, 8, 5, look.vest);
       }
     }
     if (look.tie && dir === 'down') {
-      rect(g, x - 1, y - 10, 2, 5, look.tie);
+      rect(g, x - 1, y - 9, 2, 3, look.tie);
       rect(g, x - 1, y - 6, 1, 1, look.tie);
     }
     if (look.print && dir === 'down') {
       for (const [dx, dy] of [[-3, -9], [-1, -8], [1, -9], [2, -7], [-2, -6], [0, -7]]) rect(g, x + dx, y + dy, 1, 1, look.print);
     }
     if (look.stripe && dir !== 'left' && dir !== 'right') {
-      rect(g, x - 4, y - 10, 1, 6, look.stripe);
-      rect(g, x + 3, y - 10, 1, 6, look.stripe);
+      rect(g, x - 4, y - 9, 1, 5, look.stripe);
+      rect(g, x + 3, y - 9, 1, 5, look.stripe);
     }
 
     // 한벌옷 치마: 허리선 아래로 넓게 퍼지는 A라인. 주름선과 진한 밑단으로 윗옷과 구분한다.
@@ -317,12 +318,13 @@
 
     // 상점 주인 앞치마
     if (look.apron && dir !== 'up') {
-      rect(g, x - 3, y - 9, 6, 6, look.apron);
-      rect(g, x - 1, y - 7, 2, 1, PAL.paper);
+      rect(g, x - 3, y - 8, 6, 5, look.apron);
+      rect(g, x - 1, y - 6, 2, 1, PAL.paper);
     }
 
     // 머리카락·눈. 숙일수록 정수리(머리카락)가 더 보이고, 끝까지 숙이면 눈이 안 보인다.
-    const hy = y - 17 + bow;
+    // 머리 6줄: 0~1 정수리, 2~3 옆머리, 4 눈, 5 턱
+    const hy = y - 15 + bow;
     const hair = look.hair;
     const crownRows = 2 + bow;
     // 상점에서 산 헤어스타일. 머리 꼭대기를 덮는 모자·왕관을 쓰면 위로 솟은 머리는 눌려 안 보인다.
@@ -334,7 +336,7 @@
         else if (dir === 'right') rect(g, cx + 2, hy + 4, 1, 1, PAL.skin);
       }
     } else if (dir === 'up') {
-      rect(g, cx - 4, hy, 8, 6, hair);
+      rect(g, cx - 4, hy, 8, 5, hair);
       rect(g, cx - 4, hy + 3, 1, 2, PAL.skin);
       rect(g, cx + 3, hy + 3, 1, 2, PAL.skin);
     } else if (dir === 'down') {
@@ -384,7 +386,7 @@
     g.restore();
     // 머리 위로 별이 돈다
     const t = Math.floor(performance.now() / 200) % 2;
-    const hx = x + s * 20;
+    const hx = x + s * 18;
     rect(g, hx - 3 + t * 4, y - 12, 1, 1, '#ffe04a');
     rect(g, hx + 1 - t * 4, y - 14, 1, 1, '#ffe04a');
   }
@@ -504,14 +506,16 @@
 
   // 사람 (x, y) 기준 담배 끝(불) 위치. left 는 right 를 좌우로 뒤집는다(x-0.5 대칭).
   // up(뒷모습)은 담배가 머리에 가려 안 보이고 연기만 머리 위로 오른다. 뒤통수·모자에 겹치지 않게 머리 꼭대기보다 두 칸 위에서 시작한다.
-  // 앉은 사람은 머리 꼭대기가 의자 y-6 이므로 y 를 의자 y+11 로 주면 같은 자리가 된다.
+  // 입은 머리 맨 아래 턱 줄(y-10)이다. 앉은 사람은 머리 꼭대기가 의자 y-5 이므로 y 를 의자 y+10 으로 주면 같은 자리가 된다.
+  const MOUTH_Y = -10;
+  const SEATED_SMOKE_Y = 10;
   function cigAt(x, y, dir, t) {
     const len = Math.max(1, 3 - Math.floor(t / (SMOKE_MS / 3)));
     const s = dir === 'left' ? -1 : 1;
     const mx = (px) => (s > 0 ? px : 2 * x - 1 - px);
-    if (dir === 'up') return { len, tip: [x - 1, y - 19], mx };
-    if (dir === 'down') return { len, tip: [x + 1 + len, y - 12], mx: (px) => px };
-    return { len, tip: [mx(x + 5 + len), y - 12], mx };
+    if (dir === 'up') return { len, tip: [x - 1, y - 17], mx };
+    if (dir === 'down') return { len, tip: [x + 1 + len, y + MOUTH_Y], mx: (px) => px };
+    return { len, tip: [mx(x + 5 + len), y + MOUTH_Y], mx };
   }
 
   function drawCig(g, x, y, dir, t, noSmoke) {
@@ -519,11 +523,11 @@
       const c = cigAt(x, y, dir, t);
       const dot = (px, py, col) => rect(g, c.mx(px), py, 1, 1, col);
       const ember = [CIG.emberHi, CIG.ember, CIG.emberLo, CIG.ember][Math.floor(t / 150) % 4];
-      // 앞모습은 입(x, y-12)에서 오른쪽으로, 옆모습은 얼굴 앞(x+4)에서 앞으로 문다
+      // 앞모습은 입에서 오른쪽으로, 옆모습은 얼굴 앞(x+4)에서 앞으로 문다
       const from = dir === 'down' ? x : x + 4;
-      dot(from, y - 12, CIG.filter);
-      for (let i = 1; i <= c.len; i++) dot(from + i, y - 12, CIG.paper);
-      dot(from + 1 + c.len, y - 12, ember);
+      dot(from, y + MOUTH_Y, CIG.filter);
+      for (let i = 1; i <= c.len; i++) dot(from + i, y + MOUTH_Y, CIG.paper);
+      dot(from + 1 + c.len, y + MOUTH_Y, ember);
     }
     if (!noSmoke) drawSmoke(g, x, y, dir, t);
   }
@@ -677,24 +681,28 @@
 
   // 의자에 앉은 뒷모습: 머리만 등받이 위로 보인다
   // 꾸벅 인사하면 머리가 등받이 쪽으로 내려가 일부가 등받이에 가려진다
+  // 머리 6줄 중 위 5줄이 등받이 위로 보이고 턱 줄은 등받이 윗선에 가린다.
+  const SEAT_HEAD = 5;
+  // 말풍선·화살표를 띄울 높이: 선 사람 발끝에서 머리 꼭대기 바로 위까지(머리 꼭대기 y-15, 모자 한 줄 위)
+  const HEAD_TOP = 17;
   function drawSeated(g, x, y, look, tilt, pose) {
     const hx = x + 3 + tilt;
-    const hy = y - 6 + (pose && pose.bow ? pose.bow : 0);
-    parts(g, [[hx, hy, 8, 7, PAL.skin]]);
+    const hy = y - SEAT_HEAD + (pose && pose.bow ? pose.bow : 0);
+    parts(g, [[hx, hy, 8, 6, PAL.skin]]);
     // 헤어스타일 뒷모습. 어깨 아래로 내려온 머리는 뒤에 그리는 등받이가 가린다.
     const styled = look.hairStyle && PX.hairs.draw(g, hx + 4, hy, look.hairStyle, 'up', look.hair, !!(look.cap || look.crown));
     if (!styled && look.bald) {
       rect(g, hx, hy + 2, 1, 4, look.hair);
       rect(g, hx + 7, hy + 2, 1, 4, look.hair);
-      rect(g, hx + 1, hy + 4, 6, 3, look.hair);
+      rect(g, hx + 1, hy + 4, 6, 2, look.hair);
     } else if (!styled) {
-      rect(g, hx, hy, 8, 7, look.hair);
+      rect(g, hx, hy, 8, 6, look.hair);
       rect(g, hx, hy + 3, 1, 2, PAL.skin);
       rect(g, hx + 7, hy + 3, 1, 2, PAL.skin);
     }
     if (look.earring) {
-      rect(g, hx - 1, hy + 5, 1, 1, look.earring);
-      rect(g, hx + 8, hy + 5, 1, 1, look.earring);
+      rect(g, hx - 1, hy + 4, 1, 1, look.earring);
+      rect(g, hx + 8, hy + 4, 1, 1, look.earring);
     }
     drawHeadwear(g, hx + 4, hy, look, 'up');
   }
@@ -1122,7 +1130,7 @@
           const pose = poseOf(p, nowMs);
           list.push({ key: s.y + CHAIR_H - 0.5, draw: () => drawSeated(g, s.x, s.y, p.look, 0, pose) });
           // 앉아서 피우면 등받이 위 머리에서 연기만 오른다
-          if (pose && pose.smoke != null) list.push({ key: s.y + CHAIR_H + 0.5, draw: () => drawSmoke(g, s.x + 7, s.y + 11, 'up', pose.smoke) });
+          if (pose && pose.smoke != null) list.push({ key: s.y + CHAIR_H + 0.5, draw: () => drawSmoke(g, s.x + 7, s.y + SEATED_SMOKE_Y, 'up', pose.smoke) });
           continue;
         }
         const px = Math.round(p.x), py = Math.round(p.y);
@@ -1144,7 +1152,7 @@
       for (const it of list) it.draw();
 
       const t = now.getTime() / 1000;
-      if (!locked && player.active && shopFacing()) drawMarker(g, SHOPKEEPER.x, SHOPKEEPER.y - 25, t);
+      if (!locked && player.active && shopFacing()) drawMarker(g, SHOPKEEPER.x, SHOPKEEPER.y - HEAD_TOP - 6, t);
       else {
         const near = player.seat ? null : seatFacing();
         if (near) drawMarker(g, near.x + 7, near.y - 13, t);
@@ -1187,7 +1195,7 @@
         if (s.occupant) {
           const pose = poseOf(s.occupant, performance.now());
           drawSeated(sg, x, y, s.occupant.look, 0, pose);
-          if (pose && pose.smoke != null) smokes.push([x + 7, y + 11, 'up', pose.smoke]);
+          if (pose && pose.smoke != null) smokes.push([x + 7, y + SEATED_SMOKE_Y, 'up', pose.smoke]);
         }
         sg.drawImage(chairImg, x, y);
       }
@@ -1206,6 +1214,8 @@
 
     // 나와 전광판 사이에 있는 사람(앞줄에 앉았거나 앞쪽에 서 있는 사람)을 내 줄과 같은 높이·크기로 그린다.
     // 원근 없이 머리 위치를 내 줄에 앉은 사람과 맞추므로, 내 줄 사람이 앉은 자리에서는 가려진다.
+    // 띠 안에 선 사람을 그릴 발끝 줄. 머리(발끝 -15)가 앉은 머리(3번째 줄)와 같은 높이가 된다.
+    const STRIP_FEET = 18;
     function drawFront(sg, seat, sx, sw, smokes) {
       const list = [];
       for (const p of [shopkeeper, ...nearby()]) {
@@ -1217,15 +1227,15 @@
       // 먼 사람부터 그려 가까운 사람이 위에 오게 한다
       list.sort((a, b) => a.key - b.key);
       for (const { p, x } of list) {
-        // 띠 안에서 머리 꼭대기가 2번째 줄에 오게 맞춘다(내 줄에 앉은 머리와 같은 높이)
+        // 띠 안에서 머리 꼭대기가 3번째 줄에 오게 맞춘다(내 줄에 앉은 머리와 같은 높이: 의자 8 - SEAT_HEAD)
         const pose = poseOf(p, performance.now());
         const smoking = pose && pose.smoke != null;
         if (p.seat) {
           drawSeated(sg, x - CHAIR_W / 2, 8, p.look, 0, pose);
-          if (smoking) smokes.push([x - CHAIR_W / 2 + 7, 8 + 11, 'up', pose.smoke]);
+          if (smoking) smokes.push([x - CHAIR_W / 2 + 7, 8 + SEATED_SMOKE_Y, 'up', pose.smoke]);
         } else {
-          drawStanding(sg, x, p.rider ? 19 + RIDE_H : 19, p, pose, null, true);
-          if (smoking && !p.rider) smokes.push([x, 19, p.dir, pose.smoke]);
+          drawStanding(sg, x, p.rider ? STRIP_FEET + RIDE_H : STRIP_FEET, p, pose, null, true);
+          if (smoking && !p.rider) smokes.push([x, STRIP_FEET, p.dir, pose.smoke]);
         }
       }
     }
@@ -1256,7 +1266,7 @@
     function anchor(who) {
       // 강아지는 키가 작아 앉은 화면 띠에는 그리지 않는다
       if (who === 'dog') return dogHere() && !player.seat ? { x: dog.x, y: dog.y - 12 } : null;
-      if (who === 'keeper') return keeperHere() ? { x: keeper.x, y: keeper.y - 19 } : null;
+      if (who === 'keeper') return keeperHere() ? { x: keeper.x, y: keeper.y - HEAD_TOP } : null;
       const p = who === 'shop' ? (inExchange() ? shopkeeper : null)
         : who === 'me' ? (player.active ? player : null)
         : remotes.get(who);
@@ -1268,10 +1278,10 @@
         if (x < 0 || x > W) return null;
         return { x, y: ST.y - 1 };
       }
-      if (p.seat) return { x: p.seat.x + CHAIR_W / 2, y: p.seat.y - 9 };
+      if (p.seat) return { x: p.seat.x + CHAIR_W / 2, y: p.seat.y - SEAT_HEAD - 3 };
       // 넘어져 누워 있으면 머리가 옆으로 가 있다
       if (poseOf(p, performance.now())?.fall) return { x: p.x + (p.fall.side === 'left' ? -10 : 10), y: p.y - 10 };
-      return { x: p.x, y: p.y - (p.rider ? 19 + RIDE_H : 19) };
+      return { x: p.x, y: p.y - (p.rider ? HEAD_TOP + RIDE_H : HEAD_TOP) };
     }
 
     function releaseKeys() {

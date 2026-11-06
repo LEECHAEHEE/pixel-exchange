@@ -3,6 +3,8 @@
 // 스타일마다 앞(down)·옆(left)·뒤(up) 격자를 둔다. 오른쪽은 left 를 좌우로 뒤집어 쓴다.
 // 격자는 폭 14칸, 행 0~14. 머리(얼굴)는 3~10열·3~9행이고 10행부터 몸통이다.
 // 머리 위로 솟은 부분은 0~2행, 어깨 아래로 내려오는 부분은 10행 이후에 그린다.
+// 캐릭터 머리가 7줄에서 6줄로 줄어 그릴 때 8행(첫 턱 줄)을 빼고 그 아래를 한 줄씩 올린다(draw).
+// 격자는 7줄 머리 기준 그대로 두어, 정수리~눈(3~7행)은 그대로이고 긴 머리·꼬리만 한 줄 짧아진다.
 //   o 외곽선  h 머리카락  d 진한 머리(결·그늘)  r 머리끈  s 피부  e 눈  공백 = 그대로 둠
 (function () {
   const OUTLINE = '#2a1d18';
@@ -116,8 +118,10 @@
     const flip = dir === 'right';
     const col = { o: OUTLINE, h: color, d: darker(color), r: TIE, s: SKIN, e: EYE };
     for (const key in grid) {
-      const row = Number(key);
+      let row = Number(key);
       if (pressed && row < 3) continue;
+      if (row === 8) continue;
+      if (row > 8) row--;
       const line = grid[key];
       for (let c = 0; c < line.length; c++) {
         const fill = col[line[c]];
