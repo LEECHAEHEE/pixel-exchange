@@ -3,13 +3,14 @@
 'use strict';
 
 const { createDog } = require('./dog');
+const { createMafia } = require('./mafia');
 
 // public/js/scene.js 의 의자 배치(3줄 × 14개)와 맞춰야 한다
 const SEAT_COUNT = 42;
 // 장소마다 걸을 수 있는 모양이 달라 서버는 화면(320×180) 안인지만 본다
 const BOUNDS = { x0: 0, y0: 0, x1: 319, y1: 179 };
 // 객장(의자가 있는 곳)과 public/js/places.js 의 장소들
-const MAPS = new Set(['exchange', 'crossroad', 'racetrack']);
+const MAPS = new Set(['exchange', 'crossroad', 'racetrack', 'mafiazone']);
 const DIRS = new Set(['up', 'down', 'left', 'right']);
 // 감정표현 종류. 화면(emote.js·scene.js)에 새 표현을 넣으면 여기도 추가한다.
 const EMOTES = new Set(['bow']);
@@ -73,6 +74,7 @@ function createRoom({ market, race }) {
   const dirty = new Set();
   const history = [];
   const dog = createDog({ users, broadcast });
+  const mafia = createMafia({ send });
   let nextId = 1;
   let guestNo = 1;
 
@@ -119,6 +121,7 @@ function createRoom({ market, race }) {
     if (!users.has(u.id)) return;
     if (u.seat !== null) seats[u.seat] = null;
     race.leave(u.id);
+    if (u.map === 'mafiazone') mafia.leave(u);
     users.delete(u.id);
     dog.forget(u.id);
     dirty.delete(u.id);
@@ -173,12 +176,16 @@ function createRoom({ market, race }) {
         const x = clampNum(msg.x, BOUNDS.x0, BOUNDS.x1);
         const y = clampNum(msg.y, BOUNDS.y0, BOUNDS.y1);
         if (x === null || y === null) return;
+        const prevMap = u.map;
         u.map = msg.map;
         u.x = x;
         u.y = y;
         if (DIRS.has(msg.dir)) u.dir = msg.dir;
         u.moving = false;
         broadcast({ t: 'go', id: u.id, map: u.map, x: u.x, y: u.y, dir: u.dir }, u.id);
+        // 마피아존 입장/퇴장 → 마피아 게임 참가/이탈
+        if (prevMap === 'mafiazone' && u.map !== 'mafiazone') mafia.leave(u);
+        if (u.map === 'mafiazone' && prevMap !== 'mafiazone') mafia.enter(u);
         return;
       }
       // 경마 투표. 결과(받아들인 번호 또는 거절 사유)는 본인에게만 알린다.
@@ -205,12 +212,23 @@ function createRoom({ market, race }) {
         const text = cleanText(msg.text, CHAT_MAX);
         if (!text) return;
         u.lastChat = now;
-        // 나간 사람의 채팅도 기록에 이름이 남도록 닉네임을 함께 저장한다
+        // 마피아존 안에서는 게임 전용 채널로 격리한다(존 밖으로 새지 않음)
+        if (u.map === 'mafiazone') { mafia.handleChat(u, text); return; }
+        // 존 밖 전역 채팅: 마피아존에 있는 사람에게는 보내지 않는다
         history.push({ name: u.name, text, at: now });
         if (history.length > HISTORY_MAX) history.shift();
-        broadcast({ t: 'chat', id: u.id, name: u.name, text, at: now });
+        const data = JSON.stringify({ t: 'chat', id: u.id, name: u.name, text, at: now });
+        for (const o of users.values()) if (o.map !== 'mafiazone' && o.ws.readyState === 1) o.ws.send(data);
         return;
       }
+      // 마피아존 전용 메시지는 존 안에 있을 때만 게임 매니저로 넘긴다
+      case 'mzReady':
+      case 'mzNight':
+      case 'mzVote':
+      case 'mzConfirm':
+      case 'mzSkip':
+        if (u.map === 'mafiazone') mafia.handle(u, msg);
+        return;
     }
   }
 
