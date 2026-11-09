@@ -102,7 +102,15 @@ body {
   border: calc(var(--ps) * 0.25px) solid #1f2735;
 }
 .coin-cell b { font-weight: normal; color: #ffd76a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.coin-cell span { color: #8a93a6; text-align: right; }
+.coin-cell span { color: #8a93a6; text-align: right; white-space: nowrap; overflow: hidden; font-family: var(--mono); }
+.coin-cell .coin-rt { font-size: 0.75em; }
+/* 국내 관례: 상승 빨강, 하락 파랑 */
+.coin-cell[data-dir='up'] span { color: var(--up); }
+.coin-cell[data-dir='down'] span { color: var(--down); }
+.coin-cell[data-dir='flat'] .coin-pr { color: var(--flat); }
+.coin-cell.flash[data-dir='up'] { background: #3a0c0c; }
+.coin-cell.flash[data-dir='down'] { background: #0c1f3a; }
+.coin-cell.flash[data-dir='flat'] { background: #24262b; }
 .coin-foot {
   display: flex;
   align-items: center;

@@ -12,6 +12,7 @@ const { WebSocketServer } = require('ws');
 const { createRoom } = require('./room');
 const { createMarket, startSource } = require('./market');
 const { startNews } = require('./news');
+const { createCoins } = require('./coins');
 const { createRace } = require('./race');
 const { loadCatalog } = require('./catalog');
 const { createAccounts } = require('./accounts');
@@ -106,7 +107,10 @@ const race = createRace({
   cycleMs: Number(process.env.RACE_CYCLE_SEC) * 1000 || undefined
 });
 const accounts = createAccounts({ catalog: loadCatalog(), env: process.env });
-room = createRoom({ market, race, accounts });
+const coins = createCoins(process.env);
+room = createRoom({ market, race, accounts, coins });
+// 코인 시세는 코인 거래소를 보는 사람에게만 보낸다
+coins.attach(msg => room.sendMap('coin', msg));
 // 전광판은 객장에만 있으므로 시세는 객장을 보는 사람에게만 보낸다
 market.attach(msg => room.sendMap('exchange', msg));
 startSource(market, process.env);
