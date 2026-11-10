@@ -12,7 +12,7 @@ const SEAT_COUNT = 42;
 // 장소마다 걸을 수 있는 모양이 달라 서버는 화면(320×180) 안인지만 본다
 const BOUNDS = { x0: 0, y0: 0, x1: 319, y1: 179 };
 // 객장(의자가 있는 곳)과 public/js/places.js 의 장소들
-const MAPS = new Set(['exchange', 'coin', 'crossroad', 'racetrack', 'mafiazone', 'futsal']);
+const MAPS = new Set(['exchange', 'coin', 'us', 'crossroad', 'racetrack', 'mafiazone', 'futsal']);
 const DIRS = new Set(['up', 'down', 'left', 'right']);
 // 감정표현 종류. 화면(emote.js·scene.js)에 새 표현을 넣으면 여기도 추가한다.
 const EMOTES = new Set(['bow', 'smoke']);

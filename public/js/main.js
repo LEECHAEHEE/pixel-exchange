@@ -102,24 +102,38 @@
     stage.insertBefore(el, boardEl);
     return el;
   });
-  // 코인 거래소 전광판. 서버가 업비트 원화 시세를 { sym, price, change, rate } 로 보내 준다.
-  const coinBoardEl = document.createElement('section');
-  coinBoardEl.className = 'coin-board';
-  coinBoardEl.setAttribute('aria-label', '코인 전광판');
-  coinBoardEl.innerHTML = '<div class="coin-grid"></div><div class="coin-foot"></div>';
-  const coinCells = new Map();
-  for (const [sym, name] of C.coins) {
-    const cell = document.createElement('div');
-    cell.className = 'coin-cell';
-    cell.dataset.dir = 'flat';
-    cell.innerHTML = '<b></b><span class="coin-pr">—</span><span class="coin-rt"></span>';
-    // 작은 화면에서도 읽히게 칸에는 이름·등락률·가격만 크게 둔다
-    cell.children[0].textContent = name;
-    cell.title = `${name} ${sym}`;
-    coinBoardEl.firstChild.appendChild(cell);
-    coinCells.set(sym, { cell, pr: cell.children[1], rt: cell.children[2], price: null, flashTimer: 0 });
+  // 코인 거래소·미국 증시의 12칸 전광판. 칸에는 이름·등락률·가격만 크게 두어 작은 화면에서도 읽히게 한다.
+  function makeTickerBoard(map, label, list) {
+    const el = document.createElement('section');
+    el.className = 'coin-board';
+    el.dataset.map = map;
+    el.setAttribute('aria-label', label);
+    el.innerHTML = '<div class="coin-grid"></div><div class="coin-foot"></div>';
+    const cells = new Map();
+    for (const [sym, name] of list) {
+      const cell = document.createElement('div');
+      cell.className = 'coin-cell';
+      cell.dataset.dir = 'flat';
+      cell.innerHTML = '<b></b><span class="coin-pr">—</span><span class="coin-rt"></span>';
+      cell.children[0].textContent = name;
+      cell.title = `${name} ${sym}`;
+      el.firstChild.appendChild(cell);
+      cells.set(sym, { cell, pr: cell.children[1], rt: cell.children[2], price: null, flashTimer: 0 });
+    }
+    place(el, C.board);
+    stage.insertBefore(el, boardEl);
+    return { el, cells, foot: el.lastChild };
   }
-  const coinFootEl = coinBoardEl.lastChild;
+
+  // 미국 증시 전광판. 시세는 아직 없어 이름만 보인다.
+  const usBoard = makeTickerBoard('us', '미국 증시 전광판',C.usStocks);
+  usBoard.foot.textContent = '미국 증시 시세 준비 중';
+
+  // 코인 거래소 전광판. 서버가 업비트 원화 시세를 { sym, price, change, rate } 로 보내 준다.
+  const coinBoard = makeTickerBoard('coin', '코인 전광판',C.coins);
+  const coinBoardEl = coinBoard.el;
+  const coinCells = coinBoard.cells;
+  const coinFootEl = coinBoard.foot;
   const COIN_FOOT = '시세: 업비트 원화(KRW) 마켓 · 등락은 매일 09시 기준 전일 대비';
   coinFootEl.textContent = '코인 시세 준비 중';
   // 1원 아래 코인은 소수 넷째 자리까지, 100원 아래는 둘째 자리까지, 그 위는 정수로
@@ -146,54 +160,66 @@
       c.price = it.price;
     }
   }
-  place(coinBoardEl, C.board);
-  stage.insertBefore(coinBoardEl, boardEl);
+  // 옆방 안내에 쓰는 9x9 동그란 그림. 모두 같은 동그라미 테두리 안에 그려 금화처럼 빙글빙글 돈다.
+  const ICONS = {
+    // 금화: 테두리·안쪽 테 · 가운데 무늬 · 왼쪽 위 반짝임
+    coin(dot) {
+      dot(2, 0, 5, 9, '#7a5410'); dot(0, 2, 9, 5, '#7a5410'); dot(1, 1, 7, 7, '#7a5410');
+      dot(2, 1, 5, 7, '#f3c53a'); dot(1, 2, 7, 5, '#f3c53a');
+      dot(3, 2, 3, 5, '#d89a1e'); dot(2, 3, 5, 3, '#d89a1e');
+      dot(4, 3, 1, 3, '#fff1a8');
+      dot(2, 2, 1, 1, '#fff8d0');
+    },
+    // 태극 문양: 위 빨강·아래 파랑. 왼쪽은 빨강이 아래로, 오른쪽은 파랑이 위로 파고들어 S 자로 맞물린다.
+    kr(dot) {
+      const RED = '#d8283a', BLUE = '#1f4fb0', EDGE = '#2a1d18';
+      dot(2, 0, 5, 9, EDGE); dot(0, 2, 9, 5, EDGE); dot(1, 1, 7, 7, EDGE);
+      dot(2, 1, 5, 1, RED);
+      dot(1, 2, 7, 1, RED);
+      dot(1, 3, 4, 1, RED); dot(5, 3, 3, 1, BLUE);
+      dot(1, 4, 3, 1, RED); dot(4, 4, 4, 1, BLUE);
+      dot(1, 5, 3, 1, RED); dot(4, 5, 4, 1, BLUE);
+      dot(1, 6, 7, 1, BLUE);
+      dot(2, 7, 5, 1, BLUE);
+    },
+    // 성조기: 빨강·흰 줄무늬 위 왼쪽에 별 두 개 박힌 파란 칸
+    us(dot) {
+      const RED = '#d8283a', WHITE = '#f4f1e8', BLUE = '#1f3f8f', EDGE = '#2a1d18';
+      dot(2, 0, 5, 9, EDGE); dot(0, 2, 9, 5, EDGE); dot(1, 1, 7, 7, EDGE);
+      dot(2, 1, 5, 1, RED);
+      dot(1, 2, 7, 1, WHITE);
+      dot(1, 3, 7, 1, RED);
+      dot(1, 4, 7, 1, WHITE);
+      dot(1, 5, 7, 1, RED);
+      dot(1, 6, 7, 1, WHITE);
+      dot(2, 7, 5, 1, RED);
+      dot(2, 1, 2, 1, BLUE); dot(1, 2, 4, 3, BLUE);
+      dot(2, 2, 1, 1, WHITE); dot(3, 3, 1, 1, WHITE);
+    }
+  };
 
-  // 객장 오른쪽 끝에 다가가면 뜨는 '코인 →' 안내. 도트 동전이 빙글빙글 돌고 안내 전체가 둥둥 뜬다.
-  const coinHintEl = document.createElement('div');
-  coinHintEl.className = 'coin-hint';
-  coinHintEl.hidden = true;
-  coinHintEl.innerHTML = '<canvas width="9" height="9"></canvas><span>코인 →</span>';
-  {
-    // 9x9 금화: 테두리·안쪽 테 · 가운데 무늬 · 왼쪽 위 반짝임
-    const cg = coinHintEl.firstChild.getContext('2d');
-    const dot = (x, y, w, h, c) => { cg.fillStyle = c; cg.fillRect(x, y, w, h); };
-    dot(2, 0, 5, 9, '#7a5410'); dot(0, 2, 9, 5, '#7a5410'); dot(1, 1, 7, 7, '#7a5410');
-    dot(2, 1, 5, 7, '#f3c53a'); dot(1, 2, 7, 5, '#f3c53a');
-    dot(3, 2, 3, 5, '#d89a1e'); dot(2, 3, 5, 3, '#d89a1e');
-    dot(4, 3, 1, 3, '#fff1a8');
-    dot(2, 2, 1, 1, '#fff8d0');
+  // 방 끝 가까이 갔을 때만 띄우는 옆방 안내. 객장 → 코인 → 미장 → 객장 고리를 따라 양 끝에 하나씩.
+  function makeEdgeHint(map, side, icon, text) {
+    const el = document.createElement('div');
+    el.className = 'coin-hint';
+    el.hidden = true;
+    el.innerHTML = '<canvas width="9" height="9"></canvas><span></span>';
+    el.lastChild.textContent = side === 'left' ? `← ${text}` : `${text} →`;
+    const cg = el.firstChild.getContext('2d');
+    ICONS[icon]((x, y, w, h, c) => { cg.fillStyle = c; cg.fillRect(x, y, w, h); });
+    const at = C.edgeHint[side];
+    place(el, at);
+    stage.insertBefore(el, boardEl);
+    const near = side === 'left' ? (p) => p.x < at.nearX : (p) => p.x > at.nearX;
+    return { el, map, near };
   }
-  place(coinHintEl, C.coinHint);
-  stage.insertBefore(coinHintEl, boardEl);
-
-  // 코인 거래소 왼쪽 끝에 다가가면 뜨는 '← 국장' 안내. 금화처럼 빙글빙글 도는 태극 문양과 함께 안내 전체가 둥둥 뜬다.
-  const krHintEl = document.createElement('div');
-  krHintEl.className = 'coin-hint kr-hint';
-  krHintEl.hidden = true;
-  krHintEl.innerHTML = '<canvas width="9" height="9"></canvas><span>← 국장</span>';
-  {
-    // 9x9 태극 문양: 금화와 같은 동그라미 테두리 안에 위 빨강·아래 파랑.
-    // 왼쪽은 빨강이 아래로, 오른쪽은 파랑이 위로 파고들어 S 자로 맞물린다(가운데 기준 점대칭).
-    const fg = krHintEl.firstChild.getContext('2d');
-    const dot = (x, y, w, h, c) => { fg.fillStyle = c; fg.fillRect(x, y, w, h); };
-    const RED = '#d8283a', BLUE = '#1f4fb0', EDGE = '#2a1d18';
-    dot(2, 0, 5, 9, EDGE); dot(0, 2, 9, 5, EDGE); dot(1, 1, 7, 7, EDGE);
-    dot(2, 1, 5, 1, RED);
-    dot(1, 2, 7, 1, RED);
-    dot(1, 3, 4, 1, RED); dot(5, 3, 3, 1, BLUE);
-    dot(1, 4, 3, 1, RED); dot(4, 4, 4, 1, BLUE);
-    dot(1, 5, 3, 1, RED); dot(4, 5, 4, 1, BLUE);
-    dot(1, 6, 7, 1, BLUE);
-    dot(2, 7, 5, 1, BLUE);
-  }
-  place(krHintEl, C.krHint);
-  stage.insertBefore(krHintEl, boardEl);
-
-  // 방 끝 가까이 갔을 때만 띄우는 안내: 객장 오른쪽 끝 → 코인, 코인 거래소 왼쪽 끝 → 국장
   const edgeHints = [
-    { el: coinHintEl, map: 'exchange', near: (p) => p.x > C.coinHint.nearX },
-    { el: krHintEl, map: 'coin', near: (p) => p.x < C.krHint.nearX }
+    makeEdgeHint('exchange', 'left', 'us', '미장'),
+    makeEdgeHint('exchange', 'right', 'coin', '코인'),
+    makeEdgeHint('coin', 'left', 'kr', '국장'),
+    makeEdgeHint('coin', 'right', 'us', '미장'),
+    makeEdgeHint('us', 'left', 'coin', '코인'),
+    makeEdgeHint('us', 'right', 'kr', '국장')
   ];
 
   // 장소에 딸린 DOM 오버레이. 장소를 옮기며 화면이 밀릴 때 같은 양만큼 함께 민다.
@@ -202,6 +228,7 @@
     { el: document.querySelector('.sign'), map: 'exchange' },
     ...edgeHints.map(({ el, map }) => ({ el, map })),
     { el: coinBoardEl, map: 'coin' },
+    { el: usBoard.el, map: 'us' },
     ...labelEls.map(el => ({ el, map: el.dataset.map }))
   ];
 
@@ -300,7 +327,8 @@
     talk: 'Space 로 상점 주인에게 말 걸기',
     seated: 'Space 또는 ↓ ← → 로 일어나기',
     'crossroad:free': '↑ 객장 · ↓ 경마장 · ← 풋살장 · → 마피아존 · [Esc] 조작 방법',
-    'coin:free': '← 국장 · [Esc] 조작 방법',
+    'coin:free': '← 국장 · 미장 → · [Esc] 조작 방법',
+    'us:free': '← 코인 · 국장 → · [Esc] 조작 방법',
     // 풋살장은 팀·공 상태로 고른다(futsal.prompt)
     'futsal:lobby': '팀을 골라 참가하세요 · 풋살장에서는 방향키로만 이동 · [Esc] 조작 방법',
     'futsal:team': 'START 로 경기 시작 · 경기 중 방향키 이동, S 패스, D 슛',

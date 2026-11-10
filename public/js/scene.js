@@ -93,25 +93,40 @@
   // blocks 와 겹치면 막히며, exits 안에 들어서면 to 장소의 spawn 으로 옮겨 간다.
   // 출구에 slide 가 있으면 어두워지는 대신 옛 게임처럼 화면이 그쪽으로 밀리며 옆 장소로 넘어간다.
   // spawn.y 가 없으면 들어온 높이 그대로 옆 장소 가장자리에서 시작한다.
-  // 객장 오른쪽 끝(상점 주인 아래쪽)은 코인 거래소로 이어진다.
+  // 객장·코인 거래소·미국 증시는 옆으로 이어진 고리다: 객장 → 오른쪽 코인 → 오른쪽 미장 → 오른쪽 다시 객장.
+  // 객장 양 끝 출구는 화분·상점 주인 아래쪽 통로에만 둔다. 객장으로 들어오는 출구도 같은 높이로 맞춰
+  // 들어오자마자 화분·상점 주인에 갇히지 않게 한다.
+  const EDGE_Y = SHOPKEEPER.y + 2;
+  const toExchange = (side) => side === 'left'
+    ? { x: 0, y: EDGE_Y, w: 3, h: H - EDGE_Y, to: 'exchange', spawn: { x: W - 10, dir: 'left' }, slide: 'left' }
+    : { x: W - 5, y: EDGE_Y, w: 5, h: H - EDGE_Y, to: 'exchange', spawn: { x: 8, dir: 'right' }, slide: 'right' };
   const EXCHANGE = {
     walk: [{ x: 4, y: 120, w: W - 8, h: H - 121 }],
     blocks: BLOCKS,
     exits: [
       { x: CARPET_X, y: H - 2, w: CARPET_W, h: 2, to: 'crossroad', spawn: { x: 160, y: 26, dir: 'down' } },
-      { x: W - 5, y: SHOPKEEPER.y + 2, w: 5, h: H - SHOPKEEPER.y - 2, to: 'coin', spawn: { x: 8, dir: 'right' }, slide: 'right' }
+      { x: 0, y: EDGE_Y, w: 5, h: H - EDGE_Y, to: 'us', spawn: { x: W - 10, dir: 'left' }, slide: 'left' },
+      { x: W - 5, y: EDGE_Y, w: 5, h: H - EDGE_Y, to: 'coin', spawn: { x: 8, dir: 'right' }, slide: 'right' }
     ],
     aisle: AISLE_X,
     floorY: FLOOR_Y
   };
 
-  // 코인 거래소: 객장과 같은 방에 코인 전광판(DOM)만 있다. 왼쪽 끝으로 나가면 객장으로 돌아간다.
-  const COIN = {
+  // 코인 거래소·미국 증시: 객장과 같은 방에 전광판(DOM)만 있다
+  const sideRoom = (left, right) => ({
     walk: [{ x: 2, y: 120, w: W - 6, h: H - 121 }],
     blocks: [],
-    exits: [{ x: 0, y: 120, w: 3, h: H - 120, to: 'exchange', spawn: { x: W - 10, dir: 'left' }, slide: 'left' }],
+    exits: [left, right],
     floorY: FLOOR_Y
-  };
+  });
+  const COIN = sideRoom(
+    toExchange('left'),
+    { x: W - 5, y: 120, w: 5, h: H - 120, to: 'us', spawn: { x: 8, dir: 'right' }, slide: 'right' }
+  );
+  const US = sideRoom(
+    { x: 0, y: 120, w: 3, h: H - 120, to: 'coin', spawn: { x: W - 10, dir: 'left' }, slide: 'left' },
+    toExchange('right')
+  );
 
   // ---------- 정적 배경 ----------
 
@@ -147,8 +162,8 @@
     return c;
   }
 
-  // coin 이면 객장 오른쪽 코인 거래소: 벽·간판·전광판 틀·바닥은 같고 카펫·화분이 없다
-  function paintBackground(coin) {
+  // side 면 코인 거래소·미국 증시: 벽·간판·전광판 틀·바닥은 객장과 같고 카펫·화분이 없다
+  function paintBackground(side) {
     const { c, g } = makeCanvas(W, H);
     const r = rng(7);
 
@@ -183,7 +198,7 @@
       }
     }
     rect(g, 0, FLOOR_Y, W, 2, PAL.floorShade);
-    if (coin) return c;
+    if (side) return c;
 
     // 가운데 통로 카펫
     rect(g, 148, 120, 24, H - 120, PAL.carpetEdge);
@@ -798,7 +813,8 @@
     // 장소마다 배경은 처음 한 번만 그린다
     const areas = {
       exchange: Object.assign({ bg }, EXCHANGE),
-      coin: Object.assign({ bg: paintBackground(true) }, COIN)
+      coin: Object.assign({ bg: paintBackground(true) }, COIN),
+      us: Object.assign({ bg: paintBackground(true) }, US)
     };
     for (const [id, place] of Object.entries(PX.places || {})) {
       areas[id] = Object.assign({ bg: place.paint() }, place);

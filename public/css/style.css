@@ -84,8 +84,10 @@ body {
   font-size: calc(var(--ps) * 6.5px);
   line-height: 1.15;
 }
-.stage[data-map='coin'] .coin-board,
-.stage[data-slide~='coin'] .coin-board { display: grid; }
+.stage[data-map='coin'] .coin-board[data-map='coin'],
+.stage[data-slide~='coin'] .coin-board[data-map='coin'],
+.stage[data-map='us'] .coin-board[data-map='us'],
+.stage[data-slide~='us'] .coin-board[data-map='us'] { display: grid; }
 .coin-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
