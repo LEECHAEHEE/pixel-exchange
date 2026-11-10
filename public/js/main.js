@@ -102,19 +102,49 @@
     stage.insertBefore(el, boardEl);
     return el;
   });
-  // 코인 거래소 전광판. 아직 시세를 받지 않아 코인 이름과 빈 값만 있다.
+  // 코인 거래소 전광판. 서버가 업비트 원화 시세를 { sym, price, change, rate } 로 보내 준다.
   const coinBoardEl = document.createElement('section');
   coinBoardEl.className = 'coin-board';
   coinBoardEl.setAttribute('aria-label', '코인 전광판');
   coinBoardEl.innerHTML = '<div class="coin-grid"></div><div class="coin-foot"></div>';
+  const coinCells = new Map();
   for (const [sym, name] of C.coins) {
     const cell = document.createElement('div');
     cell.className = 'coin-cell';
-    cell.innerHTML = '<b></b><span>—</span>';
+    cell.dataset.dir = 'flat';
+    cell.innerHTML = '<b></b><span class="coin-pr">—</span><span class="coin-rt"></span>';
     cell.children[0].textContent = `${name} ${sym}`;
     coinBoardEl.firstChild.appendChild(cell);
+    coinCells.set(sym, { cell, pr: cell.children[1], rt: cell.children[2], price: null, flashTimer: 0 });
   }
-  coinBoardEl.lastChild.textContent = '코인 시세 준비 중';
+  const coinFootEl = coinBoardEl.lastChild;
+  const COIN_FOOT = '시세: 업비트 원화(KRW) 마켓 · 등락은 매일 09시 기준 전일 대비';
+  coinFootEl.textContent = '코인 시세 준비 중';
+  const coinNum = new Intl.NumberFormat('ko-KR');
+  // 1원 아래 코인은 소수 넷째 자리까지, 100원 아래는 둘째 자리까지, 그 위는 정수로
+  function fmtCoin(v) {
+    const digits = v < 1 ? 4 : v < 100 ? 2 : 0;
+    return v.toLocaleString('ko-KR', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  }
+  function applyCoins(m) {
+    if (m.status) coinFootEl.textContent = m.status === 'LIVE' ? COIN_FOOT : `코인 시세 ${m.status}`;
+    for (const it of m.list || []) {
+      const c = coinCells.get(it.sym);
+      if (!c || typeof it.price !== 'number') continue;
+      const dir = it.change > 0 ? 'up' : it.change < 0 ? 'down' : 'flat';
+      const arrow = dir === 'up' ? '▲' : dir === 'down' ? '▼' : '';
+      c.pr.textContent = fmtCoin(it.price);
+      c.rt.textContent = `${arrow}${coinNum.format(Math.abs(it.change))} ${it.rate > 0 ? '+' : ''}${it.rate.toFixed(2)}%`;
+      if (c.cell.dataset.dir !== dir) c.cell.dataset.dir = dir;
+      // 가격이 바뀐 칸만 잠깐 밝혀 체결을 보여 준다(처음 채울 때는 빼고)
+      if (c.price != null && c.price !== it.price) {
+        c.cell.classList.add('flash');
+        clearTimeout(c.flashTimer);
+        c.flashTimer = setTimeout(() => c.cell.classList.remove('flash'), C.flashMs);
+      }
+      c.price = it.price;
+    }
+  }
   place(coinBoardEl, C.board);
   stage.insertBefore(coinBoardEl, boardEl);
 
@@ -394,6 +424,7 @@
         }
         if (msg.dog) scene.net.dog(msg.dog);
         if (msg.market) applyMarket(msg.market);
+        if (msg.coins) applyCoins(msg.coins);
         if (msg.stable) scene.net.stable(msg.stable);
         if (msg.futsal) futsal.apply(msg.futsal);
       },
@@ -449,6 +480,7 @@
 
       symbols(msg) { board.setSymbols(msg.symbols); },
       ticks(msg) { board.push(msg.ticks); },
+      coins(msg) { applyCoins(msg); },
       indices(msg) { board.setIndices(msg.indices); },
       ticker(msg) { board.setTicker(msg.text); },
       status(msg) { board.setStatus(msg.text, msg.live); }
