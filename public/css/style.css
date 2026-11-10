@@ -81,7 +81,7 @@ body {
   background: var(--board-bg);
   overflow: hidden;
   contain: strict;
-  font-size: calc(var(--ps) * 4px);
+  font-size: calc(var(--ps) * 6.5px);
   line-height: 1.15;
 }
 .stage[data-map='coin'] .coin-board,
@@ -93,17 +93,22 @@ body {
   gap: calc(var(--ps) * 0.5px);
   padding: calc(var(--ps) * 1px);
 }
+/* 윗줄 이름·등락률, 아랫줄 가격. 두 줄로 줄여 작은 화면에서도 글자를 키울 수 있게 한다. */
 .coin-cell {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'nm rt' 'pr pr';
+  align-content: center;
+  column-gap: calc(var(--ps) * 1px);
   padding: 0 calc(var(--ps) * 1.5px);
   background: #10141c;
   border: calc(var(--ps) * 0.25px) solid #1f2735;
+  min-width: 0;
 }
-.coin-cell b { font-weight: normal; color: #ffd76a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.coin-cell b { grid-area: nm; font-weight: normal; color: #ffd76a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .coin-cell span { color: #8a93a6; text-align: right; white-space: nowrap; overflow: hidden; font-family: var(--mono); }
-.coin-cell .coin-rt { font-size: 0.75em; }
+.coin-cell .coin-rt { grid-area: rt; }
+.coin-cell .coin-pr { grid-area: pr; font-size: 1.4em; }
 /* 국내 관례: 상승 빨강, 하락 파랑 */
 .coin-cell[data-dir='up'] span { color: var(--up); }
 .coin-cell[data-dir='down'] span { color: var(--down); }
@@ -117,6 +122,9 @@ body {
   padding: 0 calc(var(--ps) * 2px);
   color: #8a93a6;
   border-top: calc(var(--ps) * 0.5px) solid #1f2735;
+  font-size: calc(var(--ps) * 4.5px);
+  white-space: nowrap;
+  overflow: hidden;
 }
 /* 객장 오른쪽 끝의 '코인 →' 안내: 동전은 가로로 줄었다 늘며 도는 것처럼, 안내 전체는 위아래로 둥둥 */
 .coin-hint {

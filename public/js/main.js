@@ -113,14 +113,15 @@
     cell.className = 'coin-cell';
     cell.dataset.dir = 'flat';
     cell.innerHTML = '<b></b><span class="coin-pr">—</span><span class="coin-rt"></span>';
-    cell.children[0].textContent = `${name} ${sym}`;
+    // 작은 화면에서도 읽히게 칸에는 이름·등락률·가격만 크게 둔다
+    cell.children[0].textContent = name;
+    cell.title = `${name} ${sym}`;
     coinBoardEl.firstChild.appendChild(cell);
     coinCells.set(sym, { cell, pr: cell.children[1], rt: cell.children[2], price: null, flashTimer: 0 });
   }
   const coinFootEl = coinBoardEl.lastChild;
   const COIN_FOOT = '시세: 업비트 원화(KRW) 마켓 · 등락은 매일 09시 기준 전일 대비';
   coinFootEl.textContent = '코인 시세 준비 중';
-  const coinNum = new Intl.NumberFormat('ko-KR');
   // 1원 아래 코인은 소수 넷째 자리까지, 100원 아래는 둘째 자리까지, 그 위는 정수로
   function fmtCoin(v) {
     const digits = v < 1 ? 4 : v < 100 ? 2 : 0;
@@ -134,7 +135,7 @@
       const dir = it.change > 0 ? 'up' : it.change < 0 ? 'down' : 'flat';
       const arrow = dir === 'up' ? '▲' : dir === 'down' ? '▼' : '';
       c.pr.textContent = fmtCoin(it.price);
-      c.rt.textContent = `${arrow}${coinNum.format(Math.abs(it.change))} ${it.rate > 0 ? '+' : ''}${it.rate.toFixed(2)}%`;
+      c.rt.textContent = `${arrow}${Math.abs(it.rate).toFixed(2)}%`;
       if (c.cell.dataset.dir !== dir) c.cell.dataset.dir = dir;
       // 가격이 바뀐 칸만 잠깐 밝혀 체결을 보여 준다(처음 채울 때는 빼고)
       if (c.price != null && c.price !== it.price) {
