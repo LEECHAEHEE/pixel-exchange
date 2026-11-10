@@ -163,4 +163,13 @@ setInterval(() => {
 
 server.listen(PORT, () => {
   console.log(`[server] http://localhost:${PORT}`);
+  logOutboundIp();
 });
+
+// 토스 API 는 허용 IP 에서만 받으므로, 호스팅에서 밖으로 나가는 IP 를 켤 때마다 로그에 남긴다(토스에 등록할 값)
+function logOutboundIp() {
+  fetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(10000) })
+    .then(r => r.json())
+    .then(d => console.log(`[server] outbound ip ${d.ip}`))
+    .catch(e => console.warn(`[server] outbound ip lookup failed: ${e.message}`));
+}
