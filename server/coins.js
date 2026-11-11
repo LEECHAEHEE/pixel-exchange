@@ -16,7 +16,10 @@ const WebSocket = require('ws');
 
 const URL = 'wss://api.upbit.com/websocket/v1';
 // 화면 config.js 의 coins 와 같은 순서·기호. 이름은 화면이 갖고 있다.
-const SYMBOLS = ['BTC', 'ETH', 'XRP', 'SOL', 'DOGE', 'ADA', 'TRX', 'LINK', 'AVAX', 'DOT', 'SUI', 'BCH'];
+const SYMBOLS = [
+  'BTC', 'ETH', 'XRP', 'SOL', 'DOGE', 'ADA', 'TRX', 'LINK', 'AVAX', 'DOT',
+  'SUI', 'BCH', 'ETC', 'XLM', 'HBAR', 'SHIB', 'NEAR', 'APT', 'ARB', 'ATOM'
+];
 const FLUSH_MS = 500;
 // 아무도 안 보게 된 뒤 이만큼 지나면 끊는다(잠깐 객장에 다녀오는 동안 다시 붙는 일을 줄인다)
 const IDLE_CLOSE_MS = 60000;

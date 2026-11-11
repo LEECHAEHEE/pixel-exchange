@@ -9,7 +9,10 @@
 'use strict';
 
 // 화면 config.js 의 usStocks 와 같은 기호
-const US_SYMBOLS = ['AAPL', 'MSFT', 'NVDA', 'GOOGL', 'AMZN', 'META', 'TSLA', 'AVGO', 'BRK.B', 'JPM', 'NFLX', 'PLTR'];
+const US_SYMBOLS = [
+  'AAPL', 'MSFT', 'NVDA', 'GOOGL', 'AMZN', 'META', 'TSLA', 'AVGO', 'BRK.B', 'JPM',
+  'NFLX', 'PLTR', 'LLY', 'V', 'WMT', 'ORCL', 'AMD', 'COST', 'XOM', 'KO'
+];
 
 function createUsStocks() {
   const latest = new Map();
