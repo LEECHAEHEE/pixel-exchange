@@ -185,4 +185,4 @@ function createAccounts({ catalog, env }) {
   return { enter, leave, buy, setEquip, view, kind: store.kind };
 }
 
-module.exports = { createAccounts };
+module.exports = { createAccounts, readSupabase };

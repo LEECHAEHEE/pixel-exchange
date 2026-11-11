@@ -14,3 +14,11 @@ create table if not exists public.px_users (
 
 -- 브라우저(anon 키)로는 아무것도 못 하게 RLS 를 켜고 정책은 두지 않는다. service_role 키는 RLS 를 거치지 않는다.
 alter table public.px_users enable row level security;
+
+-- 서버가 다시 켜져도 남아야 하는 작은 값(server/kv.js). 지금은 국장 전일 기준가 기록(key 'kr-base') 하나.
+create table if not exists public.px_kv (
+  key         text primary key,
+  value       jsonb not null,
+  updated_at  timestamptz not null default now()
+);
+alter table public.px_kv enable row level security;

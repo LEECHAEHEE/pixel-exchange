@@ -15,6 +15,7 @@
 'use strict';
 
 const fs = require('fs');
+const { createKv } = require('./kv');
 
 const BASE = 'https://openapi.tossinvest.com';
 
@@ -134,6 +135,7 @@ function prevClose(candles, today) {
 
 function tossSource(market, env, keys, us) {
   const api = createClient(keys);
+  const kv = createKv(env);
   const topN = Math.max(1, Math.min(1000, Number(env.TOSS_TOP) || 192));
   const pollMs = Math.max(1000, Number(env.TOSS_POLL_MS) || 2000);
   const idlePollMs = 60000;
@@ -185,6 +187,54 @@ function tossSource(market, env, keys, us) {
   // 그 값을 주는 곳은 랭킹 API 의 price.basePrice 뿐이고 한 번에 100위까지라, 랭킹 종류·기간을 바꿔 가며
   // (TOP_GAINERS·TOP_LOSERS 는 기간 시작 기준가라 뺀다) 전광판 종목이 다 채워질 때까지 모은다.
   // 랭킹에 끝내 없는 종목만 일봉 전일 종가로 두고, 10분마다 랭킹으로 다시 채워 본다.
+  //
+  // 그래서 가장 먼저 쓰는 것은 '장 끝난 뒤의 현재가 기록'이다. 애프터마켓이 끝난 20:05 ~ 다음 날 08:00 사이의
+  // 현재가 API 값이 곧 그 마지막 가격이므로, 이 시간에 전 종목 현재가를 적어 두고(px_kv 에도 남겨 재시작에 대비)
+  // 다음 거래일의 기준가로 쓴다. 기록이 없을 때(그 시간에 서버가 꺼져 있었을 때)만 아래 랭킹·일봉으로 채운다.
+  const SNAP_KEY = 'kr-base';
+  const SNAP_GAP_MS = 30 * 60e3;
+  let snap = null;               // { at: ms, prices: { code: 가격 } }
+  let snapTriedAt = 0;
+
+  // 거래일 date(KST 'YYYY-MM-DD') 직전 거래일(평일)의 20:05 와 그날 08:00. 이 사이에 적은 기록만 그날 기준가로 쓴다.
+  function snapWindow(date) {
+    const open = Date.parse(`${date}T08:00:00+09:00`);
+    let prev = open - 86400e3;
+    while ([0, 6].includes(new Date(prev + 9 * 3600e3).getUTCDay())) prev -= 86400e3;
+    return { from: Date.parse(`${kstDate(new Date(prev))}T20:05:00+09:00`), to: open };
+  }
+
+  function snapFor(today) {
+    if (!snap) return null;
+    const w = snapWindow(today);
+    return snap.at >= w.from && snap.at < w.to ? snap.prices : null;
+  }
+
+  // 평일 20:05 ~ 다음 날 08:00 과 주말이 '장 끝난 뒤'
+  function afterClose(ms = Date.now()) {
+    const k = new Date(ms + 9 * 3600e3);
+    const day = k.getUTCDay();
+    const min = k.getUTCHours() * 60 + k.getUTCMinutes();
+    return day === 0 || day === 6 || min >= 20 * 60 + 5 || min < 8 * 60;
+  }
+
+  async function takeSnapshot() {
+    snapTriedAt = Date.now();
+    const prices = {};
+    for (let i = 0; i < stocks.length; i += PRICE_CHUNK) {
+      const codes = stocks.slice(i, i + PRICE_CHUNK).map(s => s.code);
+      const list = await api.get('/api/v1/prices?symbols=' + codes.join(','), 'MARKET_DATA');
+      for (const p of list || []) {
+        const v = Number(p.lastPrice);
+        if (v > 0) prices[p.symbol] = v;
+      }
+    }
+    if (!Object.keys(prices).length) return;
+    snap = { at: Date.now(), prices };
+    kv.set(SNAP_KEY, snap);
+    console.log(`[toss] base snapshot ${Object.keys(prices).length} prices`);
+  }
+
   const RANK_TYPES = ['MARKET_TRADING_AMOUNT', 'MARKET_TRADING_VOLUME', 'TOSS_SECURITIES_TRADING_AMOUNT', 'TOSS_SECURITIES_TRADING_VOLUME'];
   const RANK_DURATIONS = ['realtime', '1d', '1w', '1mo', '3mo', '6mo', '1y'];
   const BASE_RETRY_MS = 10 * 60e3;
@@ -219,13 +269,16 @@ function tossSource(market, env, keys, us) {
   async function loadBases(list, today) {
     if (baseDay !== today) baseFrom.clear();
     baseTriedAt = Date.now();
-    const need = new Set(list.filter(s => baseFrom.get(s.code) !== 'ranking').map(s => s.code));
+    const snapped = snapFor(today) || {};
+    const good = c => baseFrom.get(c) === 'ranking' || baseFrom.get(c) === 'snapshot';
+    const need = new Set(list.filter(s => !good(s.code) && !snapped[s.code]).map(s => s.code));
     const ranked = need.size && !preOpen() ? await rankingBases(need) : new Map();
     let changed = false;
     for (const s of list) {
-      if (!need.has(s.code)) continue;
-      let p = ranked.get(s.code);
-      let from = 'ranking';
+      if (good(s.code)) continue;
+      let p = snapped[s.code];
+      let from = 'snapshot';
+      if (!p) { p = ranked.get(s.code); from = 'ranking'; }
       if (!p) {
         if (baseFrom.has(s.code)) continue;
         try {
@@ -241,8 +294,9 @@ function tossSource(market, env, keys, us) {
       base.set(s.code, p);
       baseFrom.set(s.code, from);
     }
+    const count = from => list.filter(s => baseFrom.get(s.code) === from).length;
     const daily = list.filter(s => baseFrom.get(s.code) === 'daily');
-    console.log(`[toss] base ranking ${list.length - daily.length} · daily ${daily.length}` +
+    console.log(`[toss] base snapshot ${count('snapshot')} · ranking ${count('ranking')} · daily ${daily.length}` +
       (daily.length ? ` (${daily.slice(0, 5).map(s => s.name).join(', ')}${daily.length > 5 ? ' …' : ''})` : ''));
     for (const name of INDEX_NAMES) {
       try {
@@ -319,8 +373,14 @@ function tossSource(market, env, keys, us) {
     for (;;) {
       const started = Date.now();
       try {
-        // 날짜가 바뀌면 기준가를 새로 잡고, 랭킹에서 못 받은(일봉으로 둔) 종목이 있으면 10분마다 다시 채워 본다
-        const retry = [...baseFrom.values()].includes('daily') && !preOpen() && Date.now() - baseTriedAt > BASE_RETRY_MS;
+        // 장 끝난 뒤에는 30분마다 현재가를 다음 거래일 기준가로 적어 둔다
+        if (stocks.length && afterClose() && Date.now() - snapTriedAt > SNAP_GAP_MS) await takeSnapshot();
+        // 날짜가 바뀌면 기준가를 새로 잡는다. 일봉으로 둔 종목이 남았으면 10분마다 랭킹으로 다시 채워 보고,
+        // 그날 쓸 기록이 생겼으면 바로 바꾼다.
+        const daily = [...baseFrom].filter(([, from]) => from === 'daily').map(([c]) => c);
+        const snapped = snapFor(kstDate());
+        const retry = daily.length && ((!preOpen() && Date.now() - baseTriedAt > BASE_RETRY_MS) ||
+          (snapped && daily.some(c => snapped[c])));
         if (stocks.length && (kstDate() !== baseDay || retry)) await refreshRanking();
         await pollPrices();
         if (failing) { failing = false; }
@@ -436,6 +496,9 @@ function tossSource(market, env, keys, us) {
   }
 
   (async () => {
+    // 지난번에 적어 둔 장 끝난 뒤 현재가(서버가 다시 켜져도 오늘 기준가를 맞추려고)
+    const saved = await kv.get(SNAP_KEY);
+    if (saved && Number.isFinite(saved.at) && saved.prices && typeof saved.prices === 'object') snap = saved;
     // 첫 순위를 받을 때까지 1분 간격으로 다시 시도한다(허용 IP 미등록 등)
     while (!stocks.length) {
       await refreshRanking();
