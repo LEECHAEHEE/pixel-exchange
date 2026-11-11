@@ -218,11 +218,12 @@ function apiSource(market, { url, apiKey }) {
   connect();
 }
 
-function startSource(market, env) {
+// us 는 미국 증시 전광판 보관소(us.js). 토스로 받을 때만 채운다.
+function startSource(market, env, us) {
   const tossKeys = readKeys(env);
   if (tossKeys) {
     console.log('[market] source=toss');
-    tossSource(market, env, tossKeys);
+    tossSource(market, env, tossKeys, us);
   } else if (env.MARKET_WS_URL) {
     console.log('[market] source=api');
     apiSource(market, { url: env.MARKET_WS_URL, apiKey: env.MARKET_API_KEY });

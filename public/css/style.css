@@ -88,6 +88,13 @@ body {
 .stage[data-slide~='coin'] .coin-board[data-map='coin'],
 .stage[data-map='us'] .coin-board[data-map='us'],
 .stage[data-slide~='us'] .coin-board[data-map='us'] { display: grid; }
+/* 미국 증시: 객장처럼 종목 칸을 좌우로 나누고 가운데에 시계·지수 패널(.board-side, 객장과 같은 모양)을 둔다 */
+.coin-board.with-side {
+  --s: var(--ps);
+  grid-template-columns: 1fr 20% 1fr;
+}
+.coin-board.with-side .coin-foot { grid-column: 1 / -1; }
+.coin-board.with-side .coin-grid { grid-template-columns: repeat(2, 1fr); }
 .coin-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

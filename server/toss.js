@@ -5,6 +5,7 @@
 // - 시세: 현재가 API 를 TOSS_POLL_MS(기본 2초)마다 200종목씩 한 번에 조회한다.
 //         현재가 API 에는 전일 대비가 없어서, 일봉의 전일 종가를 기준가로 잡고 등락을 계산한다.
 // - 지수: KOSPI·KOSDAQ 도 같은 방식(현재가 + 일봉 전일 종가).
+// - 미국 증시 방: 정해진 미국 종목(us.js)도 같은 방식. 다우·나스닥 지수는 토스가 주지 않는다.
 //
 // 키는 코드에 쓰지 않는다. 환경변수 TOSS_CLIENT_ID·TOSS_CLIENT_SECRET, 또는 두 줄짜리 파일 경로
 // TOSS_KEY_FILE(첫 줄 client_id tsck_…, 둘째 줄 client_secret tssk_…)로 넘긴다.
@@ -129,7 +130,7 @@ function prevClose(candles, today) {
   return pick ? Number(pick.closePrice) : null;
 }
 
-function tossSource(market, env, keys) {
+function tossSource(market, env, keys, us) {
   const api = createClient(keys);
   const topN = Math.max(1, Math.min(1000, Number(env.TOSS_TOP) || 192));
   const pollMs = Math.max(1000, Number(env.TOSS_POLL_MS) || 2000);
@@ -275,8 +276,68 @@ function tossSource(market, env, keys) {
     }
   }
 
+  // ---------- 미국 증시 전광판 ----------
+  // 국내와 같은 현재가·일봉 API 를 미국 기호로 부른다. 국내 조회(200개 묶음)와 따로 부른다.
+  // 기준가는 늘 두 번째 일봉(직전 거래일) 종가다. 미국 일봉 날짜가 어느 시간대 기준인지 문서에 없어
+  // 날짜 비교 대신, 장이 끝난 뒤·다음 장 전에도 마지막 거래일 등락을 보이도록 이렇게 잡고 자주 다시 받는다.
+  const US_POLL_MS = 3000;
+  const US_IDLE_POLL_MS = 30000;
+  const US_BASE_MS = 5 * 60e3;
+  const usBase = new Map();
+  let usBaseAt = 0;
+  let usFailing = false;
+
+  async function loadUsBases() {
+    for (const sym of us.symbols) {
+      try {
+        const r = await api.get(`/api/v1/candles?symbol=${encodeURIComponent(sym)}&interval=1d&count=2`, 'MARKET_DATA_CHART');
+        const c = r && r.candles;
+        const p = Array.isArray(c) && c[1] ? Number(c[1].closePrice) : null;
+        if (p) usBase.set(sym, p);
+      } catch (e) {
+        console.warn(`[toss] us base ${sym} failed: ${e.message}`);
+      }
+    }
+    usBaseAt = Date.now();
+  }
+
+  async function pollUs() {
+    if (Date.now() - usBaseAt > US_BASE_MS) await loadUsBases();
+    const list = await api.get('/api/v1/prices?symbols=' + us.symbols.join(','), 'MARKET_DATA');
+    const out = [];
+    for (const p of list || []) {
+      const price = Number(p.lastPrice);
+      if (!Number.isFinite(price)) continue;
+      const b = usBase.get(p.symbol);
+      const change = b ? price - b : 0;
+      out.push({ sym: p.symbol, price, change, rate: b ? change / b * 100 : 0 });
+    }
+    us.push(out);
+  }
+
+  async function usLoop() {
+    for (;;) {
+      try {
+        await pollUs();
+        if (usFailing) console.log('[toss] us prices recovered');
+        usFailing = false;
+        us.setStatus('LIVE');
+      } catch (e) {
+        if (!usFailing) console.warn(`[toss] us prices failed: ${e.message}`);
+        usFailing = true;
+        us.setStatus(e.status === 403 ? '허용 IP 미등록' : '연결 오류');
+      }
+      // 미국 증시 방을 아무도 안 보면 느리게 부른다(들어오면 sync 로 마지막 값을 받는다)
+      await sleep(usFailing ? 10000 : us.watched ? US_POLL_MS : US_IDLE_POLL_MS);
+    }
+  }
+
   market.setStatus('연결 중', false);
   market.setTicker('토스증권 시세 불러오는 중');
+  if (us) {
+    us.setStatus('연결 중');
+    usLoop();
+  }
 
   (async () => {
     // 첫 순위를 받을 때까지 1분 간격으로 다시 시도한다(허용 IP 미등록 등)

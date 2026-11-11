@@ -13,6 +13,7 @@ const { createRoom } = require('./room');
 const { createMarket, startSource } = require('./market');
 const { startNews } = require('./news');
 const { createCoins } = require('./coins');
+const { createUsStocks } = require('./us');
 const { createRace } = require('./race');
 const { loadCatalog } = require('./catalog');
 const { createAccounts } = require('./accounts');
@@ -108,12 +109,14 @@ const race = createRace({
 });
 const accounts = createAccounts({ catalog: loadCatalog(), env: process.env });
 const coins = createCoins(process.env);
-room = createRoom({ market, race, accounts, coins });
-// 코인 시세는 코인 거래소를 보는 사람에게만 보낸다
+const usStocks = createUsStocks();
+room = createRoom({ market, race, accounts, coins, usStocks });
+// 코인·미장 시세는 그 방을 보는 사람에게만 보낸다
 coins.attach(msg => room.sendMap('coin', msg));
+usStocks.attach(msg => room.sendMap('us', msg));
 // 전광판은 객장에만 있으므로 시세는 객장을 보는 사람에게만 보낸다
 market.attach(msg => room.sendMap('exchange', msg));
-startSource(market, process.env);
+startSource(market, process.env, usStocks);
 startNews(list => market.setNews(list), process.env, () => market.snapshot().symbols.map(s => s.name));
 
 wss.on('connection', (ws) => {

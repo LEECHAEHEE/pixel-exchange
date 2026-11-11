@@ -103,31 +103,97 @@
     return el;
   });
   // 코인 거래소·미국 증시의 12칸 전광판. 칸에는 이름·등락률·가격만 크게 두어 작은 화면에서도 읽히게 한다.
-  function makeTickerBoard(map, label, list) {
+  // side 가 있으면 객장처럼 종목 칸을 좌우로 나누고 가운데에 시계·지수 패널을 둔다(객장 전광판과 같은 class 를 써 모양을 맞춘다).
+  function makeTickerBoard(map, label, list, side) {
     const el = document.createElement('section');
-    el.className = 'coin-board';
+    el.className = side ? 'coin-board with-side' : 'coin-board';
     el.dataset.map = map;
     el.setAttribute('aria-label', label);
-    el.innerHTML = '<div class="coin-grid"></div><div class="coin-foot"></div>';
+    el.innerHTML = side
+      ? '<div class="coin-grid"></div>' +
+        '<aside class="board-side"><div class="side-clock"><span class="clock">--:--:--</span>' +
+        '<span class="date-row"><span class="date"></span><span class="status"></span></span></div>' +
+        '<div class="indices"></div></aside>' +
+        '<div class="coin-grid"></div><div class="coin-foot"></div>'
+      : '<div class="coin-grid"></div><div class="coin-foot"></div>';
+    const grids = el.querySelectorAll('.coin-grid');
     const cells = new Map();
-    for (const [sym, name] of list) {
+    const indices = new Map();
+    if (side) {
+      el.querySelector('.status').textContent = side.status;
+      for (const name of side.indices) {
+        const row = document.createElement('div');
+        row.className = 'idx';
+        row.dataset.dir = 'flat';
+        row.innerHTML = '<em></em><b>—</b><i></i><small></small>';
+        row.firstChild.textContent = name;
+        el.querySelector('.indices').appendChild(row);
+        indices.set(name, row);
+      }
+    }
+    for (const [i, [sym, name]] of list.entries()) {
       const cell = document.createElement('div');
       cell.className = 'coin-cell';
       cell.dataset.dir = 'flat';
       cell.innerHTML = '<b></b><span class="coin-pr">—</span><span class="coin-rt"></span>';
       cell.children[0].textContent = name;
       cell.title = `${name} ${sym}`;
-      el.firstChild.appendChild(cell);
+      // 가운데 패널이 있으면 앞 절반은 왼쪽, 뒤 절반은 오른쪽 칸에 넣는다
+      grids[side && i >= list.length / 2 ? 1 : 0].appendChild(cell);
       cells.set(sym, { cell, pr: cell.children[1], rt: cell.children[2], price: null, flashTimer: 0 });
     }
     place(el, C.board);
     stage.insertBefore(el, boardEl);
-    return { el, cells, foot: el.lastChild };
+    return { el, cells, indices, foot: el.lastChild, clock: el.querySelector('.clock'), date: el.querySelector('.date') };
   }
 
-  // 미국 증시 전광판. 시세는 아직 없어 이름만 보인다.
-  const usBoard = makeTickerBoard('us', '미국 증시 전광판',C.usStocks);
-  usBoard.foot.textContent = '미국 증시 시세 준비 중';
+  // 12칸 전광판에 { sym, price, change, rate } 시세를 채운다. 가격이 바뀐 칸만 잠깐 밝혀 체결을 보여 준다(처음 채울 때는 빼고).
+  function applyTicks(cells, list, fmt) {
+    for (const it of list || []) {
+      const c = cells.get(it.sym);
+      if (!c || typeof it.price !== 'number') continue;
+      const dir = it.change > 0 ? 'up' : it.change < 0 ? 'down' : 'flat';
+      const arrow = dir === 'up' ? '▲' : dir === 'down' ? '▼' : '';
+      c.pr.textContent = fmt(it.price);
+      c.rt.textContent = `${arrow}${Math.abs(it.rate).toFixed(2)}%`;
+      if (c.cell.dataset.dir !== dir) c.cell.dataset.dir = dir;
+      if (c.price != null && c.price !== it.price) {
+        c.cell.classList.add('flash');
+        clearTimeout(c.flashTimer);
+        c.flashTimer = setTimeout(() => c.cell.classList.remove('flash'), C.flashMs);
+      }
+      c.price = it.price;
+    }
+  }
+
+  // 미국 증시 전광판. 가운데 시계는 뉴욕 시각. 종목 시세는 서버가 토스에서 받아 달러로 보내 준다.
+  // 다우·나스닥 지수는 토스가 주지 않아 이름만 보인다.
+  const usBoard = makeTickerBoard('us', '미국 증시 전광판', C.usStocks, { indices: C.usIndices, status: '시세 대기' });
+  const US_FOOT = '시세: 토스증권 Open API (달러) · 등락은 직전 거래일 종가 대비 · 가운데 시계는 뉴욕 시각';
+  usBoard.foot.textContent = '미국 증시 시세 준비 중 · 가운데 시계는 뉴욕 시각';
+  const usStatusEl = usBoard.el.querySelector('.status');
+  const usd = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  function applyUs(m) {
+    if (m.status) {
+      const live = m.status === 'LIVE';
+      usBoard.foot.textContent = live ? US_FOOT : `미국 증시 시세 ${m.status} · 가운데 시계는 뉴욕 시각`;
+      usStatusEl.textContent = live ? 'LIVE' : m.status;
+      usStatusEl.dataset.live = live ? '1' : '0';
+    }
+    applyTicks(usBoard.cells, m.list, v => usd.format(v));
+  }
+  {
+    const NY = 'America/New_York';
+    const timeFmt = new Intl.DateTimeFormat('en-GB', { timeZone: NY, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
+    const dateFmt = new Intl.DateTimeFormat('ko-KR', { timeZone: NY, month: '2-digit', day: '2-digit', weekday: 'short' });
+    const tick = () => {
+      const d = new Date();
+      usBoard.clock.textContent = timeFmt.format(d);
+      usBoard.date.textContent = '뉴욕 ' + dateFmt.format(d);
+      setTimeout(tick, 1000 - d.getMilliseconds());
+    };
+    tick();
+  }
 
   // 코인 거래소 전광판. 서버가 업비트 원화 시세를 { sym, price, change, rate } 로 보내 준다.
   const coinBoard = makeTickerBoard('coin', '코인 전광판',C.coins);
@@ -143,22 +209,7 @@
   }
   function applyCoins(m) {
     if (m.status) coinFootEl.textContent = m.status === 'LIVE' ? COIN_FOOT : `코인 시세 ${m.status}`;
-    for (const it of m.list || []) {
-      const c = coinCells.get(it.sym);
-      if (!c || typeof it.price !== 'number') continue;
-      const dir = it.change > 0 ? 'up' : it.change < 0 ? 'down' : 'flat';
-      const arrow = dir === 'up' ? '▲' : dir === 'down' ? '▼' : '';
-      c.pr.textContent = fmtCoin(it.price);
-      c.rt.textContent = `${arrow}${Math.abs(it.rate).toFixed(2)}%`;
-      if (c.cell.dataset.dir !== dir) c.cell.dataset.dir = dir;
-      // 가격이 바뀐 칸만 잠깐 밝혀 체결을 보여 준다(처음 채울 때는 빼고)
-      if (c.price != null && c.price !== it.price) {
-        c.cell.classList.add('flash');
-        clearTimeout(c.flashTimer);
-        c.flashTimer = setTimeout(() => c.cell.classList.remove('flash'), C.flashMs);
-      }
-      c.price = it.price;
-    }
+    applyTicks(coinCells, m.list, fmtCoin);
   }
   // 옆방 안내에 쓰는 9x9 동그란 그림. 모두 같은 동그라미 테두리 안에 그려 금화처럼 빙글빙글 돈다.
   const ICONS = {
@@ -454,6 +505,7 @@
         if (msg.dog) scene.net.dog(msg.dog);
         if (msg.market) applyMarket(msg.market);
         if (msg.coins) applyCoins(msg.coins);
+        if (msg.us) applyUs(msg.us);
         if (msg.stable) scene.net.stable(msg.stable);
         if (msg.futsal) futsal.apply(msg.futsal);
       },
@@ -510,6 +562,7 @@
       symbols(msg) { board.setSymbols(msg.symbols); },
       ticks(msg) { board.push(msg.ticks); },
       coins(msg) { applyCoins(msg); },
+      us(msg) { applyUs(msg); },
       indices(msg) { board.setIndices(msg.indices); },
       ticker(msg) { board.setTicker(msg.text); },
       status(msg) { board.setStatus(msg.text, msg.live); }

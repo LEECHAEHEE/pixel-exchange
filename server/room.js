@@ -64,7 +64,7 @@ function clampNum(v, lo, hi) {
   return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : null;
 }
 
-function createRoom({ market, race, accounts, coins }) {
+function createRoom({ market, race, accounts, coins, usStocks }) {
   const users = new Map();
   const seats = new Array(SEAT_COUNT).fill(null);
   const dirty = new Set();
@@ -143,6 +143,7 @@ function createRoom({ market, race, accounts, coins }) {
     const msg = { t: 'sync', map: u.map, people, dog: dog.snapshot() };
     if (u.map === 'exchange') msg.market = market.snapshot();
     if (u.map === 'coin' && coins) msg.coins = coins.snapshot();
+    if (u.map === 'us' && usStocks) msg.us = usStocks.snapshot();
     if (u.map === 'racetrack') msg.stable = stable.snapshot();
     if (u.map === 'futsal') msg.futsal = futsal.snapshot();
     send(u, msg);
@@ -358,15 +359,18 @@ function createRoom({ market, race, accounts, coins }) {
   setInterval(() => {
     let watchers = 0;
     let coinWatchers = 0;
+    let usWatchers = 0;
     let dogWatchers = 0;
     const dm = dog.snapshot().map;
     for (const u of users.values()) {
       if (watching(u, 'exchange')) watchers++;
       if (watching(u, 'coin')) coinWatchers++;
+      if (watching(u, 'us')) usWatchers++;
       if (watching(u, dm)) dogWatchers++;
     }
-    // 코인 거래소를 아무도 안 보면 업비트 연결을 끊는다
+    // 코인 거래소를 아무도 안 보면 업비트 연결을 끊고, 미국 증시 방을 아무도 안 보면 토스 조회를 늦춘다
     if (coins) coins.setWatched(coinWatchers > 0);
+    if (usStocks) usStocks.setWatched(usWatchers > 0);
     // 강아지가 있는 장소를 아무도 안 보고 주인도 없으면 강아지는 멈춰 둔다(돌아오면 sync 로 맞춘다).
     // 주인이 있으면 주인이 장소를 옮길 때 따라가야 하므로 계속 움직인다.
     if (dogWatchers > 0 || dog.snapshot().owner) dog.tick(BROADCAST_MS / 1000);
