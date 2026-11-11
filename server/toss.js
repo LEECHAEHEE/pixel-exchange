@@ -180,53 +180,54 @@ function tossSource(market, env, keys, us) {
     return list;
   }
 
-  // 기준가는 토스 앱과 같게 '전날 애프터마켓(NXT, 20:00)까지의 마지막 가격'이다. 일봉 종가는 정규장(15:30) 종가라
-  // 그 사이 움직인 만큼 등락률이 앱과 달라진다. 그래서 아래 순서로 채운다.
-  //   1) 랭킹 API 의 price.basePrice(토스의 전일 기준가). 거래대금·거래량 상위 100위까지만 준다.
-  //   2) 오늘 08:00 직전의 마지막 1분봉 종가(전날 마지막 거래).
-  //   3) 그래도 없으면 일봉의 전일 종가.
-  async function rankingBases() {
+  // 기준가는 토스 앱과 같게 '전날 애프터마켓(NXT, 20:00)까지의 마지막 가격'이다. 일봉·1분봉 종가는 정규장(15:30)
+  // 종가라 그 사이 움직인 만큼 등락률이 앱과 달라진다(실측: 삼성전자 랭킹 198,900 · 1분봉 197,300 · 일봉 197,300).
+  // 그 값을 주는 곳은 랭킹 API 의 price.basePrice 뿐이고 한 번에 100위까지라, 랭킹 종류·기간을 바꿔 가며
+  // (TOP_GAINERS·TOP_LOSERS 는 기간 시작 기준가라 뺀다) 전광판 종목이 다 채워질 때까지 모은다.
+  // 랭킹에 끝내 없는 종목만 일봉 전일 종가로 두고, 10분마다 랭킹으로 다시 채워 본다.
+  const RANK_TYPES = ['MARKET_TRADING_AMOUNT', 'MARKET_TRADING_VOLUME', 'TOSS_SECURITIES_TRADING_AMOUNT', 'TOSS_SECURITIES_TRADING_VOLUME'];
+  const RANK_DURATIONS = ['realtime', '1d', '1w', '1mo', '3mo', '6mo', '1y'];
+  const BASE_RETRY_MS = 10 * 60e3;
+  const baseFrom = new Map();    // code → 'ranking' | 'daily'
+  let baseTriedAt = 0;
+
+  async function rankingBases(need) {
     const out = new Map();
-    for (const type of ['MARKET_TRADING_AMOUNT', 'MARKET_TRADING_VOLUME']) {
-      try {
-        const r = await api.get(`/api/v1/rankings?type=${type}&marketCountry=KR&duration=realtime&count=100`, 'RANKING');
-        for (const it of (r && r.rankings) || []) {
-          const p = Number(it.price && it.price.basePrice);
-          if (p > 0) out.set(it.symbol, p);
+    for (const duration of RANK_DURATIONS) {
+      for (const type of RANK_TYPES) {
+        if ([...need].every(c => out.has(c))) return out;
+        try {
+          const r = await api.get(`/api/v1/rankings?type=${type}&marketCountry=KR&duration=${duration}&count=100`, 'RANKING');
+          for (const it of (r && r.rankings) || []) {
+            const p = Number(it.price && it.price.basePrice);
+            if (p > 0) out.set(it.symbol, p);
+          }
+        } catch (e) {
+          console.warn(`[toss] ranking ${type} ${duration} failed: ${e.message}`);
         }
-      } catch (e) {
-        console.warn(`[toss] ranking ${type} failed: ${e.message}`);
       }
     }
     return out;
   }
 
-  async function lastMinuteBefore(code, today) {
-    const before = encodeURIComponent(`${today}T07:59:59+09:00`);
-    const r = await api.get(`/api/v1/candles?symbol=${encodeURIComponent(code)}&interval=1m&count=1&before=${before}`, 'MARKET_DATA_CHART');
-    const c = r && r.candles && r.candles[0];
-    return c ? Number(c.closePrice) : null;
+  // 자정~08:00 의 랭킹은 아직 전날 장 기준일 수 있어 쓰지 않는다
+  function preOpen() {
+    return new Date(Date.now() + 9 * 3600e3).getUTCHours() < 8;
   }
 
+  // 기준가가 바뀐 종목이 있으면 true
   async function loadBases(list, today) {
-    // 자정~08:00 의 실시간 랭킹은 아직 전날 장 기준일 수 있어 1분봉만 쓴다
-    const k = new Date(Date.now() + 9 * 3600e3);
-    const preOpen = k.getUTCHours() < 8;
-    const ranked = preOpen ? new Map() : await rankingBases();
-    const used = { ranking: 0, minute: 0, daily: 0 };
+    if (baseDay !== today) baseFrom.clear();
+    baseTriedAt = Date.now();
+    const need = new Set(list.filter(s => baseFrom.get(s.code) !== 'ranking').map(s => s.code));
+    const ranked = need.size && !preOpen() ? await rankingBases(need) : new Map();
+    let changed = false;
     for (const s of list) {
-      if (baseDay === today && base.has(s.code)) continue;
+      if (!need.has(s.code)) continue;
       let p = ranked.get(s.code);
       let from = 'ranking';
       if (!p) {
-        try {
-          p = await lastMinuteBefore(s.code, today);
-          from = 'minute';
-        } catch (e) {
-          console.warn(`[toss] minute base ${s.code} failed: ${e.message}`);
-        }
-      }
-      if (!p) {
+        if (baseFrom.has(s.code)) continue;
         try {
           const r = await api.get(`/api/v1/candles?symbol=${encodeURIComponent(s.code)}&interval=1d&count=2`, 'MARKET_DATA_CHART');
           p = prevClose(r && r.candles, today);
@@ -235,18 +236,14 @@ function tossSource(market, env, keys, us) {
           console.warn(`[toss] base ${s.code} failed: ${e.message}`);
         }
       }
-      if (p) { base.set(s.code, p); used[from]++; }
+      if (!p) continue;
+      if (base.get(s.code) !== p) changed = true;
+      base.set(s.code, p);
+      baseFrom.set(s.code, from);
     }
-    console.log(`[toss] base ranking ${used.ranking} · minute ${used.minute} · daily ${used.daily}`);
-    // 출처별 값이 같은지 대표 종목으로 비교해 남긴다(앱과 다르면 어느 쪽이 맞는지 볼 수 있게)
-    try {
-      const code = '005930';
-      const m = await lastMinuteBefore(code, today);
-      const d = await api.get(`/api/v1/candles?symbol=${code}&interval=1d&count=2`, 'MARKET_DATA_CHART');
-      console.log(`[toss] base check ${code} ranking=${ranked.get(code)} minute=${m} daily=${prevClose(d && d.candles, today)}`);
-    } catch (e) {
-      console.warn(`[toss] base check failed: ${e.message}`);
-    }
+    const daily = list.filter(s => baseFrom.get(s.code) === 'daily');
+    console.log(`[toss] base ranking ${list.length - daily.length} · daily ${daily.length}` +
+      (daily.length ? ` (${daily.slice(0, 5).map(s => s.name).join(', ')}${daily.length > 5 ? ' …' : ''})` : ''));
     for (const name of INDEX_NAMES) {
       try {
         const r = await api.get(`/api/v1/market-indicators/${name}/candles?interval=1d&count=2`, 'MARKET_INDICATOR_CHART');
@@ -257,6 +254,7 @@ function tossSource(market, env, keys, us) {
       }
     }
     baseDay = today;
+    return changed;
   }
 
   async function refreshRanking() {
@@ -264,7 +262,8 @@ function tossSource(market, env, keys, us) {
       const list = await loadRanking();
       const today = kstDate();
       if (today !== baseDay) { base.clear(); indexBase.clear(); }
-      await loadBases(list, today);
+      // 기준가가 바뀐 종목은 가격이 그대로여도 새 등락률을 다시 보내야 한다
+      if (await loadBases(list, today)) lastPrice.clear();
       const changed = list.map(s => s.code).join() !== stocks.map(s => s.code).join();
       stocks = list;
       // 틱은 [code, price] 로만 나가고 등락은 화면이 기준가로 계산하므로, 기준가를 종목 목록에 실어야
@@ -320,8 +319,9 @@ function tossSource(market, env, keys, us) {
     for (;;) {
       const started = Date.now();
       try {
-        // 날짜가 바뀌면 전일 종가를 새로 잡는다
-        if (stocks.length && kstDate() !== baseDay) await refreshRanking();
+        // 날짜가 바뀌면 기준가를 새로 잡고, 랭킹에서 못 받은(일봉으로 둔) 종목이 있으면 10분마다 다시 채워 본다
+        const retry = [...baseFrom.values()].includes('daily') && !preOpen() && Date.now() - baseTriedAt > BASE_RETRY_MS;
+        if (stocks.length && (kstDate() !== baseDay || retry)) await refreshRanking();
         await pollPrices();
         if (failing) { failing = false; }
         ok();
