@@ -1039,6 +1039,13 @@
         if (k === 'up') return;
         stand();
       }
+      // 같은 방향키를 짧게 두 번 누르면 뛴다. 방향키를 모두 뗄 때까지 뛰는 채로 간다.
+      if (!e.repeat) {
+        const now = performance.now();
+        if (k === lastTap.key && now - lastTap.at < DOUBLE_TAP_MS) running = true;
+        lastTap.key = k;
+        lastTap.at = now;
+      }
       keys.add(k);
       player.route = null;
     });
@@ -1046,7 +1053,7 @@
       const k = KEYMAP[e.code];
       if (k) keys.delete(k);
     });
-    window.addEventListener('blur', () => keys.clear());
+    window.addEventListener('blur', () => { keys.clear(); running = false; });
 
     canvas.addEventListener('pointerdown', (e) => {
       const rc = canvas.getBoundingClientRect();
@@ -1064,6 +1071,11 @@
     const PLAYER_SPEED = 55;
     // 말을 타면 빨라진다. 관리인(server/stable.js, 66)보다 빨라 곧장 달아나면 따돌릴 수 있다.
     const RIDE_SPEED = 82;
+    // 방향키 두 번 연타로 뛰기. 말보다는 느리게 둬서 말 타는 의미를 남긴다.
+    const RUN_FACTOR = 1.45;
+    const DOUBLE_TAP_MS = 300;
+    const lastTap = { key: null, at: 0 };
+    let running = false;
 
     function updatePlayer(dt) {
       player.moving = false;
@@ -1075,9 +1087,12 @@
       if (keys.has('right')) dx += 1;
       if (keys.has('up')) dy -= 1;
       if (keys.has('down')) dy += 1;
+      if (keys.size === 0) running = false;
+      // 말을 탔거나 풋살 경기장(걸음 빠르기가 경기 규칙)에서는 뛰지 않는다
+      const run = running && !player.rider && !area.speed;
 
       // 장소가 걸음 빠르기를 바꿀 수 있다(풋살장에서 공을 가진 사람은 조금 느리다)
-      const step = (player.rider ? RIDE_SPEED : PLAYER_SPEED) * (area.speed ? area.speed() : 1) * dt;
+      const step = (player.rider ? RIDE_SPEED : PLAYER_SPEED) * (area.speed ? area.speed() : 1) * (run ? RUN_FACTOR : 1) * dt;
 
       if (!dx && !dy && player.route) {
         const t = player.route[0];
@@ -1106,7 +1121,8 @@
       const moved = moveBy(player, dx / len * step, dy / len * step);
       if (!moved) player.route = null;
       player.moving = moved;
-      animate(player, moved, dt);
+      // 뛰는 동안은 다리도 빨리 움직인다
+      animate(player, moved, run ? dt * RUN_FACTOR : dt);
       if (moved) checkExit();
     }
 
@@ -1116,13 +1132,14 @@
     }
 
     // 서버 위치는 0.1초 간격이라, 그 사이를 걷는 속도로 채워 끊겨 보이지 않게 한다.
+    // 상대가 뛰면 걷는 속도로는 뒤처지므로, 남은 거리를 다음 위치가 올 무렵(약 0.12초)까지 따라잡는 속도로 올린다.
     // 너무 멀면(순간이동·재접속) 바로 옮긴다.
     const REMOTE_SPEED = 66;
     function updateRemote(r, dt) {
       if (r.seat) return;
       const dx = r.tx - r.x, dy = r.ty - r.y;
       const dist = Math.hypot(dx, dy);
-      const step = (r.rider ? RIDE_SPEED * 1.2 : REMOTE_SPEED) * dt;
+      const step = Math.max(r.rider ? RIDE_SPEED * 1.2 : REMOTE_SPEED, dist * 8) * dt;
       if (dist > 40 || dist <= step) {
         r.x = r.tx;
         r.y = r.ty;
