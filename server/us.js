@@ -11,7 +11,8 @@
 // 화면 config.js 의 usStocks 와 같은 기호
 const US_SYMBOLS = [
   'AAPL', 'MSFT', 'NVDA', 'GOOGL', 'AMZN', 'META', 'TSLA', 'AVGO', 'BRK.B', 'JPM',
-  'NFLX', 'PLTR', 'LLY', 'V', 'WMT', 'ORCL', 'AMD', 'COST', 'XOM', 'KO'
+  'NFLX', 'PLTR', 'LLY', 'V', 'WMT', 'ORCL', 'AMD', 'COST', 'XOM', 'KO',
+  'MA', 'UNH', 'JNJ', 'PG', 'HD', 'BAC', 'CRM', 'ADBE', 'PEP', 'MU'
 ];
 
 function createUsStocks() {

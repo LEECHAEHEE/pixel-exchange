@@ -56,6 +56,31 @@
     stage.style.width = C.width * scale + 'px';
     stage.style.height = C.height * scale + 'px';
     layoutGrid();
+    layoutTickers();
+  }
+
+  // 코인·미국 증시 전광판도 국장처럼 화면 배율에 따라 칸 수를 정한다. 국장과 같은 기준 글자 크기로
+  // 칸 하나에 필요한 크기(C.tickerCell 의 em)를 나눠 열·줄을 정하고(최대 maxCols x maxRows), 칸이 정해지면
+  // 글자는 칸을 채우는 만큼 키운다. 배율 3(폭 약 960px)에서 6 x 5 가 되게 맞춰 두었다.
+  // 숨은 전광판은 크기를 잴 수 없어 config 좌표(논리 px)로 계산한다. 아래 7 은 출처 줄(.coin-foot) 높이.
+  const tickerBoards = [];
+  function layoutTickers() {
+    if (!tickerBoards.length) return;
+    const c = C.cell;
+    const t = C.tickerCell;
+    const base = Math.min(c.maxFont, Math.max(c.minFont, c.fontPerScale * scale));
+    const w = C.board.w * scale;
+    const h = (C.board.h - 7) * scale;
+    const cols = Math.max(1, Math.min(t.maxCols, Math.floor(w / (base * t.wEm))));
+    const rows = Math.max(1, Math.min(t.maxRows, Math.floor(h / (base * t.hEm))));
+    const font = Math.max(base, Math.min(w / cols / t.fitW, h / rows / t.fitH));
+    for (const tb of tickerBoards) {
+      tb.grid.style.setProperty('--cols', cols);
+      tb.grid.style.setProperty('--rows', rows);
+      tb.grid.style.setProperty('--coin-font', font.toFixed(1) + 'px');
+      // 칸에 다 못 들어가는 종목은 목록 뒤쪽부터 숨긴다
+      tb.cellEls.forEach((el, i) => { el.hidden = i >= cols * rows; });
+    }
   }
 
   // 종목 글자는 읽기 좋은 크기 범위에서만 키우고, 남는 자리는 칸 수를 늘려 채운다.
@@ -103,7 +128,7 @@
     stage.insertBefore(el, boardEl);
     return el;
   });
-  // 코인 거래소·미국 증시의 5x4 칸 전광판. 칸에는 이름·등락률·가격만 두어 작은 화면에서도 읽히게 한다.
+  // 코인 거래소·미국 증시 전광판(칸 수는 layoutTickers). 칸에는 이름·등락률·가격만 둔다.
   // 아래 줄은 왼쪽에 시세 출처, 오른쪽에 시계(미국 증시만)를 둔다.
   function makeTickerBoard(map, label, list) {
     const el = document.createElement('section');
@@ -126,6 +151,8 @@
     }
     place(el, C.board);
     stage.insertBefore(el, boardEl);
+    tickerBoards.push({ grid: el.firstChild, cellEls: [...el.firstChild.children] });
+    layoutTickers();
     return { el, cells, foot: el.lastChild.firstChild, clock: el.lastChild.lastChild };
   }
 

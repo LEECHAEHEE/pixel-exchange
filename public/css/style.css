@@ -89,17 +89,18 @@ body {
 .stage[data-map='us'] .coin-board[data-map='us'],
 .stage[data-slide~='us'] .coin-board[data-map='us'] { display: grid; }
 /* 칸은 객장 전광판과 같은 .cell(윗줄 종목명, 아랫줄 왼쪽 가격·오른쪽 등락률)이고, 칸 사이 선도 객장처럼 1px 이다.
-   글자 크기는 아랫줄 '101,383,000 ▲+12.34%' 가 5칸 중 한 칸 폭에 들어가는 크기다. */
+   열·줄 수(--cols, --rows)와 글자 크기(--coin-font)는 화면 배율에 따라 main.js layoutTickers 가 정한다. */
 .coin-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  grid-auto-rows: 1fr;
+  grid-template-columns: repeat(var(--cols, 6), 1fr);
+  grid-template-rows: repeat(var(--rows, 5), 1fr);
   gap: 1px;
   background: var(--cell-line);
   min-height: 0;
-  font-size: calc(var(--ps) * 4.6px);
+  font-size: var(--coin-font, 12px);
   overflow: hidden;
 }
+.coin-grid .cell[hidden] { display: none; }
 .coin-foot {
   display: flex;
   align-items: center;
