@@ -94,19 +94,27 @@
   // 출구에 slide 가 있으면 어두워지는 대신 옛 게임처럼 화면이 그쪽으로 밀리며 옆 장소로 넘어간다.
   // spawn.y 가 없으면 들어온 높이 그대로 옆 장소 가장자리에서 시작한다.
   // 객장·코인 거래소·미국 증시는 옆으로 이어진 고리다: 객장 → 오른쪽 코인 → 오른쪽 미장 → 오른쪽 다시 객장.
-  // 객장 양 끝 출구는 화분·상점 주인 아래쪽 통로에만 둔다. 객장으로 들어오는 출구도 같은 높이로 맞춰
-  // 들어오자마자 화분·상점 주인에 갇히지 않게 한다.
-  const EDGE_Y = SHOPKEEPER.y + 2;
+  // 객장 양 끝 출구는 바닥 높이 전체에 둔다(상점 주인 뒤 좁은 틈으로도 넘어간다).
+  // 객장으로 들어올 때 화분·상점 주인과 겹치는 높이(EDGE_Y 위)면 그 뒤나 아래 빈 자리에 내려놓는다.
+  //   상점 주인은 y 122~131 을 막아 뒤쪽(y 120~121)과 아래쪽이 비고, 화분은 y 117~131 을 막아 아래쪽만 빈다.
+  const EDGE_Y = SHOPKEEPER.y + 3;
+  const BEHIND_SHOPKEEPER_Y = SHOPKEEPER.y - 8;
   const toExchange = (side) => side === 'left'
-    ? { x: 0, y: EDGE_Y, w: 3, h: H - EDGE_Y, to: 'exchange', spawn: { x: W - 10, dir: 'left' }, slide: 'left' }
-    : { x: W - 5, y: EDGE_Y, w: 5, h: H - EDGE_Y, to: 'exchange', spawn: { x: 8, dir: 'right' }, slide: 'right' };
+    ? [
+      { x: 0, y: 120, w: 3, h: EDGE_Y - 120, to: 'exchange', spawn: { x: W - 10, y: BEHIND_SHOPKEEPER_Y, dir: 'left' }, slide: 'left' },
+      { x: 0, y: EDGE_Y, w: 3, h: H - EDGE_Y, to: 'exchange', spawn: { x: W - 10, dir: 'left' }, slide: 'left' }
+    ]
+    : [
+      { x: W - 5, y: 120, w: 5, h: EDGE_Y - 120, to: 'exchange', spawn: { x: 8, y: EDGE_Y, dir: 'right' }, slide: 'right' },
+      { x: W - 5, y: EDGE_Y, w: 5, h: H - EDGE_Y, to: 'exchange', spawn: { x: 8, dir: 'right' }, slide: 'right' }
+    ];
   const EXCHANGE = {
     walk: [{ x: 4, y: 120, w: W - 8, h: H - 121 }],
     blocks: BLOCKS,
     exits: [
       { x: CARPET_X, y: H - 2, w: CARPET_W, h: 2, to: 'crossroad', spawn: { x: 160, y: 26, dir: 'down' } },
-      { x: 0, y: EDGE_Y, w: 5, h: H - EDGE_Y, to: 'us', spawn: { x: W - 10, dir: 'left' }, slide: 'left' },
-      { x: W - 5, y: EDGE_Y, w: 5, h: H - EDGE_Y, to: 'coin', spawn: { x: 8, dir: 'right' }, slide: 'right' }
+      { x: 0, y: 120, w: 5, h: H - 120, to: 'us', spawn: { x: W - 10, dir: 'left' }, slide: 'left' },
+      { x: W - 5, y: 120, w: 5, h: H - 120, to: 'coin', spawn: { x: 8, dir: 'right' }, slide: 'right' }
     ],
     aisle: AISLE_X,
     floorY: FLOOR_Y
@@ -116,7 +124,7 @@
   const sideRoom = (left, right) => ({
     walk: [{ x: 2, y: 120, w: W - 6, h: H - 121 }],
     blocks: [],
-    exits: [left, right],
+    exits: [].concat(left, right),
     floorY: FLOOR_Y
   });
   const COIN = sideRoom(
