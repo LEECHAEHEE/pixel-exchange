@@ -81,45 +81,25 @@ body {
   background: var(--board-bg);
   overflow: hidden;
   contain: strict;
-  /* 5x4 칸 한 칸 높이(약 18 논리 px)에 두 줄이 들어가는 크기 */
-  font-size: calc(var(--ps) * 5.6px);
+  font-size: calc(var(--ps) * 4.5px);
   line-height: 1.15;
 }
 .stage[data-map='coin'] .coin-board[data-map='coin'],
 .stage[data-slide~='coin'] .coin-board[data-map='coin'],
 .stage[data-map='us'] .coin-board[data-map='us'],
 .stage[data-slide~='us'] .coin-board[data-map='us'] { display: grid; }
+/* 칸은 객장 전광판과 같은 .cell(윗줄 종목명, 아랫줄 왼쪽 가격·오른쪽 등락률)이고, 칸 사이 선도 객장처럼 1px 이다.
+   글자 크기는 아랫줄 '101,383,000 ▲+12.34%' 가 5칸 중 한 칸 폭에 들어가는 크기다. */
 .coin-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   grid-auto-rows: 1fr;
-  gap: calc(var(--ps) * 0.5px);
-  padding: calc(var(--ps) * 1px);
+  gap: 1px;
+  background: var(--cell-line);
+  min-height: 0;
+  font-size: calc(var(--ps) * 4.6px);
+  overflow: hidden;
 }
-/* 윗줄 이름·등락률, 아랫줄 가격. 두 줄로 줄여 작은 화면에서도 글자를 키울 수 있게 한다. */
-.coin-cell {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas: 'nm rt' 'pr pr';
-  align-content: center;
-  column-gap: calc(var(--ps) * 1px);
-  padding: 0 calc(var(--ps) * 1.5px);
-  background: #10141c;
-  border: calc(var(--ps) * 0.25px) solid #1f2735;
-  min-width: 0;
-}
-.coin-cell b { grid-area: nm; font-weight: normal; color: #ffd76a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.coin-cell span { color: #8a93a6; text-align: right; white-space: nowrap; overflow: hidden; font-family: var(--mono); }
-.coin-cell .coin-rt { grid-area: rt; }
-/* 줄 높이가 낮으면 글자 아래(쉼표 등)가 잘려서 가격 줄만 조금 높인다 */
-.coin-cell .coin-pr { grid-area: pr; font-size: 1.35em; line-height: 1.3; }
-/* 국내 관례: 상승 빨강, 하락 파랑 */
-.coin-cell[data-dir='up'] span { color: var(--up); }
-.coin-cell[data-dir='down'] span { color: var(--down); }
-.coin-cell[data-dir='flat'] .coin-pr { color: var(--flat); }
-.coin-cell.flash[data-dir='up'] { background: #3a0c0c; }
-.coin-cell.flash[data-dir='down'] { background: #0c1f3a; }
-.coin-cell.flash[data-dir='flat'] { background: #24262b; }
 .coin-foot {
   display: flex;
   align-items: center;

@@ -112,10 +112,12 @@
     el.innerHTML = '<div class="coin-grid"></div><div class="coin-foot"><span></span><span class="coin-clock"></span></div>';
     const cells = new Map();
     for (const [sym, name] of list) {
+      // 객장 전광판 칸(board.js createSlot)과 같은 구조·class 라 모양도 같다
       const cell = document.createElement('div');
-      cell.className = 'coin-cell';
+      cell.className = 'cell';
       cell.dataset.dir = 'flat';
-      cell.innerHTML = '<b></b><span class="coin-pr">—</span><span class="coin-rt"></span>';
+      cell.dataset.empty = '';
+      cell.innerHTML = '<span class="nm"></span><span class="pr">—</span><span class="rt"></span>';
       cell.children[0].textContent = name;
       cell.title = `${name} ${sym}`;
       el.firstChild.appendChild(cell);
@@ -134,8 +136,10 @@
       const dir = it.change > 0 ? 'up' : it.change < 0 ? 'down' : 'flat';
       const arrow = dir === 'up' ? '▲' : dir === 'down' ? '▼' : '';
       c.pr.textContent = fmt(it.price);
-      c.rt.textContent = `${arrow}${Math.abs(it.rate).toFixed(2)}%`;
+      // 객장과 같은 '▲+1.23%' 모양
+      c.rt.textContent = `${arrow}${it.rate > 0 ? '+' : ''}${it.rate.toFixed(2)}%`;
       if (c.cell.dataset.dir !== dir) c.cell.dataset.dir = dir;
+      delete c.cell.dataset.empty;
       if (c.price != null && c.price !== it.price) {
         c.cell.classList.add('flash');
         clearTimeout(c.flashTimer);
