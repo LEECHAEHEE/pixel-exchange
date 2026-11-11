@@ -334,6 +334,44 @@ function tossSource(market, env, keys, us) {
     }
   }
 
+  // ---------- 종목 차트(전광판에서 종목을 누르면) ----------
+  // 분봉: 가장 최근 거래일(오늘, 장 전이면 지난 거래일) 하루치. 한 번에 200개라 08:00~20:00 이면 네 번까지 나눠 받는다.
+  // 일봉: 최근 120거래일.
+  const toRow = c => [Math.floor(Date.parse(c.timestamp) / 1000), Number(c.openPrice), Number(c.highPrice),
+    Number(c.lowPrice), Number(c.closePrice), Number(c.volume) || 0];
+
+  async function minuteCandles(code) {
+    const seen = new Set();
+    const out = [];
+    let before = null;
+    let day = null;
+    for (let page = 0; page < 4; page++) {
+      const q = `/api/v1/candles?symbol=${encodeURIComponent(code)}&interval=1m&count=200` +
+        (before ? `&before=${encodeURIComponent(before)}` : '');
+      const r = await api.get(q, 'MARKET_DATA_CHART');
+      const cs = (r && r.candles) || [];
+      if (!cs.length) break;
+      if (!day) day = String(cs[0].timestamp).slice(0, 10);
+      let done = false;
+      for (const c of cs) {
+        if (String(c.timestamp).slice(0, 10) !== day) { done = true; break; }
+        // before 는 경계 봉을 포함하므로 페이지 사이에 겹치는 봉은 한 번만 넣는다
+        if (seen.has(c.timestamp)) continue;
+        seen.add(c.timestamp);
+        out.push(toRow(c));
+      }
+      before = r.nextBefore;
+      if (done || !before) break;
+    }
+    return out.reverse();
+  }
+
+  market.setChartSource(async (code, kind) => {
+    if (kind === 'min') return minuteCandles(code);
+    const r = await api.get(`/api/v1/candles?symbol=${encodeURIComponent(code)}&interval=1d&count=120`, 'MARKET_DATA_CHART');
+    return ((r && r.candles) || []).map(toRow).reverse();
+  });
+
   // ---------- 미국 증시 전광판 ----------
   // 국내와 같은 현재가·일봉 API 를 미국 기호로 부른다. 국내 조회(200개 묶음)와 따로 부른다.
   // 기준가는 늘 두 번째 일봉(직전 거래일) 종가다. 미국 일봉 날짜가 어느 시간대 기준인지 문서에 없어

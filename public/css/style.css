@@ -417,6 +417,67 @@ body {
 .cell.flash[data-dir='down'] { background: #0c1f3a; }
 .cell.flash[data-dir='flat'] { background: #24262b; }
 
+/* ---------- 종목 차트(전광판 칸을 누르면 전광판 전체를 덮는다, chart.js) ---------- */
+
+/* 누를 수 있는 칸: 마우스를 올리면 금색 테두리 */
+.board .cell[data-code] { cursor: pointer; }
+.board .cell[data-code]:hover {
+  outline: calc(var(--s) * 0.5px) solid var(--name);
+  outline-offset: calc(var(--s) * -0.5px);
+}
+/* 차트가 떠 있는 동안 아래 종목 칸은 눌리지 않게 */
+.board.charting .board-grid { pointer-events: none; }
+
+/* z-index 를 두지 않아 전광판의 LED 주사선(::after)이 차트 위에도 그대로 덮인다 */
+.chart-view {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: calc(var(--s) * 9px) 1fr;
+  background: var(--board-bg);
+}
+.chart-view[hidden] { display: none; }
+.chart-head {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--s) * 3px);
+  padding: 0 calc(var(--s) * 2px);
+  border-bottom: 1px solid var(--cell-line);
+  font-size: calc(var(--s) * 4.5px);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.chart-head button {
+  font: inherit;
+  color: var(--flat);
+  background: #1a1d22;
+  border: 1px solid #3a3f48;
+  padding: 0 calc(var(--s) * 1.5px);
+  cursor: pointer;
+}
+.chart-head button:hover { border-color: var(--name); color: var(--name); }
+.chart-back { color: var(--name) !important; }
+.chart-name { color: var(--name); font-size: 1.2em; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.chart-price, .chart-rate { font-family: var(--mono); color: var(--flat); }
+.chart-price { font-size: 1.2em; }
+.chart-view[data-dir='up'] .chart-price, .chart-view[data-dir='up'] .chart-rate { color: var(--up); }
+.chart-view[data-dir='down'] .chart-price, .chart-view[data-dir='down'] .chart-rate { color: var(--down); }
+.chart-tabs { margin-left: auto; display: flex; gap: calc(var(--s) * 1px); }
+.chart-tabs button.on { color: #050607; background: var(--name); border-color: var(--name); }
+.chart-body { position: relative; min-height: 0; padding: calc(var(--s) * 1.5px) calc(var(--s) * 1px) 0; }
+.chart-body canvas { width: 100%; height: 100%; display: block; }
+.chart-msg {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--axis, #8a8f99);
+  font-size: calc(var(--s) * 4.5px);
+  pointer-events: none;
+}
+.chart-msg[hidden] { display: none; }
+
 .board-ticker {
   grid-column: 1 / -1;
   position: relative;

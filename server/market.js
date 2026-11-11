@@ -29,6 +29,8 @@ function createMarket() {
   let sourceNote = '';
   let headlines = [];
   let status = { text: '시세 대기', live: false };
+  let chartSource = null;
+  const chartCache = new Map();
 
   function composeTicker() {
     const sep = '   ◆   ';
@@ -108,9 +110,33 @@ function createMarket() {
     setStatus(text, live) {
       status = { text, live: !!live };
       publish({ t: 'status', ...status });
+    },
+
+    // ---------- 종목 차트 ----------
+    // 공급원이 setChartSource(fn) 로 봉 가져오기 함수를 넣는다. fn(code, kind) → [[초, 시, 고, 저, 종, 거래량], …] (오래된 순)
+    // 여러 사람이 같은 종목을 열어도 토스 호출 한도를 넘지 않게, 같은 종목·종류는 잠깐 저장해 두고 나눠 쓴다.
+    setChartSource(fn) { chartSource = fn; },
+
+    hasSymbol(code) { return symbols.some(s => s.code === code); },
+
+    chart(code, kind) {
+      if (!chartSource) return Promise.reject(new Error('no chart source'));
+      const key = code + '|' + kind;
+      const hit = chartCache.get(key);
+      if (hit && Date.now() - hit.at < CHART_TTL_MS[kind]) return hit.promise;
+      const promise = chartSource(code, kind);
+      chartCache.set(key, { at: Date.now(), promise });
+      // 실패는 저장하지 않아 다음 요청 때 다시 부른다
+      promise.catch(() => { if (chartCache.get(key)?.promise === promise) chartCache.delete(key); });
+      if (chartCache.size > CHART_CACHE_MAX) chartCache.delete(chartCache.keys().next().value);
+      return promise;
     }
   };
 }
+
+// 분봉은 장중에 계속 늘어나므로 짧게, 일봉은 길게 저장한다
+const CHART_TTL_MS = { min: 30e3, day: 5 * 60e3 };
+const CHART_CACHE_MAX = 200;
 
 // ---------- 공급원 ----------
 
@@ -136,6 +162,23 @@ function demoSource(market) {
 
   market.setSymbols(stocks);
   market.setStatus('DEMO', true);
+  // 가짜 차트: 지금 가격에서 거꾸로 걸어가며 만든 봉. 분봉은 08:00 부터 지금까지, 일봉은 120일.
+  market.setChartSource(async (code, kind) => {
+    const s = stocks.find(x => x.code === code);
+    const n = kind === 'day' ? 120 : 600;
+    const stepSec = kind === 'day' ? 86400 : 60;
+    const now = Math.floor(Date.now() / 1000 / stepSec) * stepSec;
+    const out = [];
+    let close = s.price;
+    for (let i = 0; i < n; i++) {
+      const open = Math.max(50, Math.round(close * (1 + (Math.random() - 0.5) * (kind === 'day' ? 0.04 : 0.006))));
+      const high = Math.max(open, close) * (1 + Math.random() * 0.004);
+      const low = Math.min(open, close) * (1 - Math.random() * 0.004);
+      out.push([now - i * stepSec, open, Math.round(high), Math.round(low), close, Math.round(Math.random() * 50000)]);
+      close = open;
+    }
+    return out.reverse();
+  });
   market.setTicker('데모 모드 · 가짜 시세입니다 · 서버에서 모든 접속자에게 같은 시세를 보냅니다');
 
   function step() {

@@ -123,6 +123,8 @@
       slot.code = code;
       codeToSlot.set(code, i);
       delete slot.el.dataset.empty;
+      // 누르면 차트를 여는 칸(main.js · chart.js 가 읽는다)
+      slot.el.dataset.code = code;
       writeText(slot, 'name', slot.nm, names.get(code) || code);
       const tick = latest.get(code);
       if (tick) drawTick(slot, tick);
@@ -216,6 +218,9 @@
 
     const board = {
       get size() { return slots.length; },
+      // 종목 차트 머리글에 쓰는 이름·마지막 시세
+      nameOf(code) { return names.get(code) || code; },
+      tickOf(code) { return pending.get(code) || latest.get(code) || null; },
       get cols() { return cols; },
       get rows() { return rows; },
 

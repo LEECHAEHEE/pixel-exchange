@@ -36,6 +36,7 @@
   const help = PX.createHelp({
     canOpen: () => document.getElementById('join').hidden
       && !(PX.shop && PX.shop.open) && !(PX.inventory && PX.inventory.open) && !(PX.emote && PX.emote.open)
+      && !(PX.chart && PX.chart.isOpen)
   });
   document.getElementById('hint').addEventListener('click', () => help.toggle());
 
@@ -294,6 +295,15 @@
   });
   fit();
 
+  // 전광판 종목 칸을 누르면 전광판 전체가 그 종목 차트로 바뀐다(누른 사람 화면에만)
+  const chart = PX.createChart({ boardEl, board, send: (m) => net.send(m) });
+  // 조작 방법 창(Esc)이 차트가 열려 있는 동안에는 뜨지 않게 알린다
+  PX.chart = chart;
+  boardEl.addEventListener('click', (e) => {
+    const cell = e.target.closest('.cell[data-code]');
+    if (cell && !chart.isOpen) chart.open(cell.dataset.code);
+  });
+
   const scene = PX.createScene(canvas);
   const chat = PX.createChat({
     stage,
@@ -535,7 +545,8 @@
       raceVote(msg) { race.setMine(msg.horse, msg.reason); },
 
       symbols(msg) { board.setSymbols(msg.symbols); },
-      ticks(msg) { board.push(msg.ticks); },
+      ticks(msg) { board.push(msg.ticks); chart.onTicks(msg.ticks); },
+      chart(msg) { chart.apply(msg); },
       coins(msg) { applyCoins(msg); },
       us(msg) { applyUs(msg); },
       indices(msg) { board.setIndices(msg.indices); },

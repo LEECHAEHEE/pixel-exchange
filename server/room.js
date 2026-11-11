@@ -17,6 +17,9 @@ const DIRS = new Set(['up', 'down', 'left', 'right']);
 // 감정표현 종류. 화면(emote.js·scene.js)에 새 표현을 넣으면 여기도 추가한다.
 const EMOTES = new Set(['bow', 'smoke']);
 const EMOTE_GAP_MS = 500;
+// 종목 차트: 분봉(오늘 하루) / 일봉. 한 사람이 이 간격보다 자주 요청하면 버린다.
+const CHART_KINDS = new Set(['min', 'day']);
+const CHART_GAP_MS = 400;
 
 const NAME_MAX = 12;
 const CHAT_MAX = 60;
@@ -296,6 +299,21 @@ function createRoom({ market, race, accounts, coins, usStocks }) {
       case 'vote': {
         const r = race.vote(u, msg.horse);
         send(u, { t: 'raceVote', horse: race.myVote(u.id), reason: r.ok ? null : r.reason });
+        return;
+      }
+      // 전광판에서 누른 종목의 차트. 본인에게만 보낸다. 연타로 토스를 두드리지 않게 간격을 둔다.
+      case 'chart': {
+        const now = Date.now();
+        if (typeof msg.code !== 'string' || !CHART_KINDS.has(msg.kind) || !market.hasSymbol(msg.code)) return;
+        if (now - (u.lastChart || 0) < CHART_GAP_MS) return;
+        u.lastChart = now;
+        const { code, kind } = msg;
+        market.chart(code, kind)
+          .then(candles => send(u, { t: 'chart', code, kind, candles }))
+          .catch((e) => {
+            console.warn(`[room] chart ${code} ${kind} failed: ${e.message}`);
+            send(u, { t: 'chart', code, kind, error: '차트를 불러오지 못했습니다' });
+          });
         return;
       }
       case 'emote': {
