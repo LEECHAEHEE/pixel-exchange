@@ -112,7 +112,8 @@
     walk: [{ x: 4, y: 120, w: W - 8, h: H - 121 }],
     blocks: BLOCKS,
     exits: [
-      { x: CARPET_X, y: H - 2, w: CARPET_W, h: 2, to: 'crossroad', spawn: { x: 160, y: 26, dir: 'down' } },
+      // 카펫 아래 끝은 지나가다 닿기만 해서는 안 나가고, 거기서 ↓ 를 누르고 있을 때만 사거리로 나간다
+      { x: CARPET_X, y: H - 2, w: CARPET_W, h: 2, to: 'crossroad', spawn: { x: 160, y: 26, dir: 'down' }, key: 'down' },
       { x: 0, y: 120, w: 5, h: H - 120, to: 'us', spawn: { x: W - 10, dir: 'left' }, slide: 'left' },
       { x: W - 5, y: 120, w: 5, h: H - 120, to: 'coin', spawn: { x: 8, dir: 'right' }, slide: 'right' }
     ],
@@ -1131,11 +1132,13 @@
       player.moving = moved;
       // 뛰는 동안은 다리도 빨리 움직인다
       animate(player, moved, run ? dt * RUN_FACTOR : dt);
-      if (moved) checkExit();
+      // 바닥 끝에서 ↓ 를 누르면 더 못 걸어가도(moved=false) 출구 조건(key)을 볼 수 있게 한다
+      if (moved || keys.size) checkExit();
     }
 
+    // key 가 있는 출구는 그 방향키를 누르고 있을 때만 넘어간다(클릭으로 걸어와 닿기만 해서는 안 나간다)
     function checkExit() {
-      const exit = area.exits.find(e => inside(e, player.x, player.y));
+      const exit = area.exits.find(e => inside(e, player.x, player.y) && (!e.key || keys.has(e.key)));
       if (exit) enter(exit.to, exit.spawn, exit.slide);
     }
 
