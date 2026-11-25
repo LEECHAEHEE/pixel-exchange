@@ -500,7 +500,7 @@
         chat.setName('me', msg.me.name);
         for (const u of msg.users) chat.setName(u.id, u.name);
         chat.setLog(msg.history || []);
-        scene.net.dog(msg.dog);
+        scene.net.cat(msg.cat);
         applyMarket(msg.market);
         if (msg.race) race.apply(msg.race);
         scene.net.stable(msg.stable);
@@ -509,12 +509,12 @@
         idleSent = false;
         reportIdle();
       },
-      // 장소에 들어왔거나 다시 볼 때 그 장소의 현재 모습. 안 보는 동안 놓친 위치·강아지·시세를 맞춘다.
+      // 장소에 들어왔거나 다시 볼 때 그 장소의 현재 모습. 안 보는 동안 놓친 위치·고양이·시세를 맞춘다.
       sync(msg) {
         for (const [id, x, y, dir, moving, seat] of msg.people || []) {
           if (id !== myId) scene.net.snap(id, msg.map, x, y, dir, moving, seat);
         }
-        if (msg.dog) scene.net.dog(msg.dog);
+        if (msg.cat) scene.net.cat(msg.cat);
         if (msg.market) applyMarket(msg.market);
         if (msg.coins) applyCoins(msg.coins);
         if (msg.us) applyUs(msg.us);
@@ -551,8 +551,7 @@
         else if (msg.reason) shop.result(msg.reason);
       },
       emote(msg) { if (msg.id !== myId) scene.playEmote(msg.id, msg.emote); },
-      // 강아지가 새 주인을 만나면 짖는다
-      dog(msg) { if (scene.net.dog(msg) && msg.owner) chat.say('dog', '멍!'); },
+      cat(msg) { scene.net.cat(msg); },
       // 말을 훔쳐 탔다(stall)·돌려놓았다·관리인에게 뺏겼다(stall null)
       mount(msg) {
         scene.net.mount(whoOf(msg.id), msg.stall);
@@ -612,7 +611,7 @@
     net.send({ t: 'move', map: scene.map, x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10, dir: p.dir, moving: p.moving, f });
   }, 100);
 
-  // 탭이 숨겨졌거나 X 로 가렸으면 화면이 안 보이므로 서버에 알려 위치·강아지·시세를 받지 않는다.
+  // 탭이 숨겨졌거나 X 로 가렸으면 화면이 안 보이므로 서버에 알려 위치·고양이·시세를 받지 않는다.
   // 다시 보이면 서버가 sync 로 지금 모습을 한 번에 보내 준다.
   let idleSent = false;
   function reportIdle() {

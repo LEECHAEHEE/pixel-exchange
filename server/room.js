@@ -2,7 +2,7 @@
 // 위치는 클라이언트가 보낸 값을 범위만 확인해 믿고, 의자는 서버가 주인을 정한다(동시에 앉기 방지).
 'use strict';
 
-const { createDog } = require('./dog');
+const { createCat } = require('./cat');
 const { createMafia } = require('./mafia');
 const { createStable } = require('./stable');
 const { createFutsal } = require('./futsal');
@@ -73,17 +73,8 @@ function createRoom({ market, race, accounts, coins, usStocks }) {
   const dirty = new Set();
   const history = [];
   const mafia = createMafia({ send });
-  // 강아지 소식은 강아지가 있는 장소를 보는 사람에게만 보낸다.
-  // 주인을 따라 장소를 옮긴 순간에는 떠난 장소에도 한 번 보내 그쪽 화면에서 사라지게 한다.
-  let dogMap = 'exchange';
-  const dog = createDog({
-    users,
-    broadcast: msg => {
-      if (msg.map !== dogMap) sendMap(dogMap, msg);
-      dogMap = msg.map;
-      sendMap(msg.map, msg);
-    }
-  });
+  // 고양이 소식은 고양이가 있는 장소를 보는 사람에게만 보낸다
+  const cat = createCat({ broadcast: msg => sendMap(msg.map, msg) });
   // 경마장 마굿간 말과 관리인. 말을 탔는지는 모두에게, 관리인 위치는 경마장을 보는 사람에게만 보낸다.
   const stable = createStable({ users, broadcast, sendMap: (map, msg) => sendMap(map, msg) });
   // 풋살장 경기. 킥오프 때 서버가 선수를 제자리에 세우면 다른 사람에게도 바로 보이게 위치를 바뀐 것으로 표시한다.
@@ -124,7 +115,7 @@ function createRoom({ market, race, accounts, coins, usStocks }) {
     return u.map === map && !u.idle && u.ws.readyState === 1;
   }
 
-  // 장소 안에서만 의미 있는 것(위치·강아지·시세)은 그 장소를 보는 사람에게만 보낸다. 내보내는 양이 곧 호스팅 비용이다.
+  // 장소 안에서만 의미 있는 것(위치·고양이·시세)은 그 장소를 보는 사람에게만 보낸다. 내보내는 양이 곧 호스팅 비용이다.
   function sendMap(map, msg, exceptId) {
     let data = null;
     for (const u of users.values()) {
@@ -135,7 +126,7 @@ function createRoom({ market, race, accounts, coins, usStocks }) {
   }
 
   // 장소에 들어오거나 다시 볼 때 한 번 보내는 그 장소의 현재 모습.
-  // 안 보는 동안 받지 않은 위치·강아지·시세를 여기서 한꺼번에 채운다.
+  // 안 보는 동안 받지 않은 위치·고양이·시세를 여기서 한꺼번에 채운다.
   function sendSync(u) {
     const people = [];
     for (const o of users.values()) {
@@ -143,7 +134,7 @@ function createRoom({ market, race, accounts, coins, usStocks }) {
         people.push([o.id, Math.round(o.x * 10) / 10, Math.round(o.y * 10) / 10, o.dir, o.moving ? 1 : 0, o.seat]);
       }
     }
-    const msg = { t: 'sync', map: u.map, people, dog: dog.snapshot() };
+    const msg = { t: 'sync', map: u.map, people, cat: cat.snapshot() };
     if (u.map === 'exchange') msg.market = market.snapshot();
     if (u.map === 'coin' && coins) msg.coins = coins.snapshot();
     if (u.map === 'us' && usStocks) msg.us = usStocks.snapshot();
@@ -175,7 +166,7 @@ function createRoom({ market, race, accounts, coins, usStocks }) {
       users: [...users.values()].filter(o => o !== u).map(publicOf),
       inv: accounts.view(account),
       history,
-      dog: dog.snapshot(),
+      cat: cat.snapshot(),
       market: market.snapshot(),
       race: race.snapshot(),
       stable: stable.snapshot()
@@ -194,7 +185,6 @@ function createRoom({ market, race, accounts, coins, usStocks }) {
     if (u.map === 'futsal') futsal.leave(u);
     users.delete(u.id);
     accounts.leave(u.account);
-    dog.forget(u.id);
     dirty.delete(u.id);
     broadcast({ t: 'leave', id: u.id });
     console.log(`[room] leave id=${u.id} users=${users.size}`);
@@ -378,20 +368,19 @@ function createRoom({ market, race, accounts, coins, usStocks }) {
     let watchers = 0;
     let coinWatchers = 0;
     let usWatchers = 0;
-    let dogWatchers = 0;
-    const dm = dog.snapshot().map;
+    let catWatchers = 0;
+    const cm = cat.snapshot().map;
     for (const u of users.values()) {
       if (watching(u, 'exchange')) watchers++;
       if (watching(u, 'coin')) coinWatchers++;
       if (watching(u, 'us')) usWatchers++;
-      if (watching(u, dm)) dogWatchers++;
+      if (watching(u, cm)) catWatchers++;
     }
     // 코인 거래소를 아무도 안 보면 업비트 연결을 끊고, 미국 증시 방을 아무도 안 보면 토스 조회를 늦춘다
     if (coins) coins.setWatched(coinWatchers > 0);
     if (usStocks) usStocks.setWatched(usWatchers > 0);
-    // 강아지가 있는 장소를 아무도 안 보고 주인도 없으면 강아지는 멈춰 둔다(돌아오면 sync 로 맞춘다).
-    // 주인이 있으면 주인이 장소를 옮길 때 따라가야 하므로 계속 움직인다.
-    if (dogWatchers > 0 || dog.snapshot().owner) dog.tick(BROADCAST_MS / 1000);
+    // 고양이가 있는 장소를 아무도 안 보면 멈춰 둔다(돌아오면 sync 로 맞춘다)
+    if (catWatchers > 0) cat.tick(BROADCAST_MS / 1000);
     if (stable.busy()) stable.tick(BROADCAST_MS / 1000);
     // 객장을 보는 사람이 없으면 데모 시세도 쉰다
     if ((watchers > 0) !== exchangeWatched) {

@@ -667,57 +667,6 @@
     }
   }
 
-  // 흰 포메라니안(옆모습, 오른쪽을 보는 그림). 등 위로 말린 복슬 꼬리, 짧은 다리.
-  //   o 외곽선  w 털  s 배 그늘  n 눈·코  t/T 꼬리 외곽선/털(흔들 때 좌우로 한 칸씩)
-  // 다리는 걷기 동작에 따라 따로 그린다.
-  const DOG_ROWS = [
-    '                    ',
-    '    ttt     o o     ',
-    '   tTTTt   owowo    ',
-    '   owwwwoooowwwwo   ',
-    '    owwwwwwwwwwnwo  ',
-    '   owwwwwwwwwwwwwno ',
-    '   owwwwwwwwwwwwwo  ',
-    '   owwwwwwwwwwwwo   ',
-    '    osssssssssso    '
-  ];
-  const DOG_COL = { o: PAL.outline, t: PAL.outline, w: '#f7f6f1', T: '#f7f6f1', s: '#d9d6cc', n: '#2a1d18' };
-  const DOG_LEGS = [5, 12];       // 뒷다리·앞다리 왼쪽 칸
-  const DOG_CX = 10;              // 그림에서 발끝 가운데가 되는 칸
-
-  // (x, y) 는 발끝 가운데, dir 은 'left' | 'right'. frame 은 걷기 동작(0 정지, 1·2 번갈아 다리 들기),
-  // wag 는 꼬리 흔들기(0/1).
-  function drawDog(g, x, y, dir, frame, wag) {
-    const flip = dir === 'left';
-    // 그림 칸 (col, row) 을 화면 좌표로. 왼쪽을 보면 좌우를 뒤집는다.
-    const px = (col) => flip ? x + (DOG_CX - 1 - col) : x - DOG_CX + col;
-    const top = y - 11;
-    const dot = (col, row, c) => rect(g, px(col), top + row, 1, 1, c);
-
-    rect(g, x - 6, y, 12, 1, 'rgba(0,0,0,0.18)');
-    DOG_ROWS.forEach((row, ry) => {
-      for (let cx = 0; cx < row.length; cx++) {
-        const ch = row[cx];
-        const c = DOG_COL[ch];
-        if (!c) continue;
-        // 꼬리는 흔들 때 몸 바깥쪽(뒤쪽)으로 한 칸 밀린다
-        dot(ch === 't' || ch === 'T' ? cx - wag : cx, ry, c);
-      }
-    });
-    // 다리: 정지면 둘 다 디디고, 걸을 때는 frame 에 따라 앞·뒤 다리가 번갈아 들린다
-    DOG_LEGS.forEach((lx, i) => {
-      const lifted = (frame === 1 && i === 1) || (frame === 2 && i === 0);
-      if (lifted) {
-        for (let k = 0; k < 3; k++) dot(lx + k, 9, PAL.outline);
-      } else {
-        dot(lx, 9, PAL.outline); dot(lx + 1, 9, '#d9d6cc'); dot(lx + 2, 9, PAL.outline);
-        for (let k = 0; k < 3; k++) dot(lx + k, 10, PAL.outline);
-      }
-    });
-    // 걸을 때는 혀가 살짝 보인다
-    if (frame) dot(16, 6, '#e8707a');
-  }
-
   // 의자에 앉은 뒷모습: 머리만 등받이 위로 보인다
   // 꾸벅 인사하면 머리가 등받이 쪽으로 내려가 일부가 등받이에 가려진다
   // 머리 6줄 중 위 5줄이 등받이 위로 보이고 턱 줄은 등받이 윗선에 가린다.
@@ -851,10 +800,10 @@
     // 다른 접속자. 서버가 0.1초마다 보내는 위치(tx, ty)를 향해 부드럽게 따라간다.
     const remotes = new Map();
 
-    // 강아지. 움직임과 주인은 서버가 정하고, 화면은 받은 위치를 사람처럼 부드럽게 따라간다.
-    // map 은 강아지가 있는 장소로, 나와 같은 장소일 때만 그린다.
-    const dog = { active: false, map: 'exchange', x: 160, y: 150, tx: 160, ty: 150, dir: 'left', moving: false, owner: null, frame: 0, anim: 0 };
-    const dogHere = () => dog.active && dog.map === player.map;
+    // 고양이. 움직임과 쉬는 자세는 서버가 정하고, 화면은 받은 위치를 사람처럼 부드럽게 따라간다.
+    // map 은 고양이가 있는 장소로, 나와 같은 장소일 때만 그린다.
+    const cat = { active: false, map: 'exchange', x: 160, y: 125, tx: 160, ty: 125, dir: 'left', pose: 'sit', moving: false, frame: 0, anim: 0 };
+    const catHere = () => cat.active && cat.map === player.map;
 
     // 상점 주인. 모든 접속자에게 같은 자리에 보이는 고정 NPC 라 서버와 주고받지 않는다.
     const shopkeeper = {
@@ -916,8 +865,8 @@
       if (spawn.y != null) player.y = spawn.y;
       player.dir = spawn.dir;
       player.route = null;
-      // 강아지 소식은 강아지가 있는 장소에서만 받는다. 새 장소의 sync·dog 로 실제 자리에 바로 놓이게 꺼 둔다.
-      dog.active = false;
+      // 고양이 소식은 고양이가 있는 장소에서만 받는다. 새 장소의 sync·cat 으로 실제 자리에 바로 놓이게 꺼 둔다.
+      cat.active = false;
       keeper.active = false;
       hooks.onGo(id, player.x, player.y, player.dir);
     }
@@ -1165,7 +1114,7 @@
       fade = Math.max(0, fade - dt);
       updatePlayer(dt);
       for (const r of remotes.values()) updateRemote(r, dt);
-      if (dog.active) updateRemote(dog, dt);
+      if (cat.active) updateRemote(cat, dt);
       if (keeper.active) updateRemote(keeper, dt);
       dropButts();
     }
@@ -1222,11 +1171,11 @@
       for (const b of butts) {
         if (b.map === player.map) list.push({ key: b.y - 0.5, draw: () => drawButt(g, b.x, b.y, nowMs - b.at) });
       }
-      if (dogHere()) {
-        const dx = Math.round(dog.x), dy = Math.round(dog.y);
-        // 주인이 있으면 꼬리를 빨리 흔든다
-        const wag = Math.floor(nowMs / (dog.owner ? 150 : 450)) % 2;
-        list.push({ key: dy, draw: () => drawDog(g, dx, dy, dog.dir, dog.frame, wag) });
+      if (catHere()) {
+        const cx = Math.round(cat.x), cy = Math.round(cat.y);
+        // 서버가 쉬라고 해도 받은 자리까지 미끄러지는 동안은 걷는 모습으로 그린다
+        const pose = cat.moving || Math.hypot(cat.tx - cat.x, cat.ty - cat.y) > 0.5 ? 'walk' : cat.pose;
+        list.push({ key: cy, draw: () => PX.cat.draw(g, cx, cy, cat.dir, pose, nowMs) });
       }
       list.sort((a, b) => a.key - b.key);
       for (const it of list) it.draw();
@@ -1353,8 +1302,6 @@
     function anchor(who) {
       // 화면이 밀리는 동안은 말풍선·닉네임표를 숨긴다(두 장소가 함께 보여 자리가 맞지 않는다)
       if (slide) return null;
-      // 강아지는 키가 작아 앉은 화면 띠에는 그리지 않는다
-      if (who === 'dog') return dogHere() && !player.seat ? { x: dog.x, y: dog.y - 12 } : null;
       if (who === 'keeper') return keeperHere() ? { x: keeper.x, y: keeper.y - HEAD_TOP } : null;
       const p = who === 'shop' ? (inExchange() ? shopkeeper : null)
         : who === 'me' ? (player.active ? player : null)
@@ -1551,28 +1498,26 @@
         return [...remotes.values()].map(r => [r.id, r.name]);
       },
 
-      // 강아지 상태. 처음 받을 때와 장소를 옮겼을 때는 그 자리에 바로 놓는다. 반환값: 주인이 바뀌었는지.
-      dog(d) {
-        if (!d) return false;
+      // 고양이 상태. 처음 받을 때와 장소를 옮겼을 때는 그 자리에 바로 놓는다.
+      cat(d) {
+        if (!d) return;
         const map = d.map || 'exchange';
-        // 다른 장소의 강아지(떠난 장소에서 늦게 온 소식 포함)는 그리지 않는다
+        // 다른 장소의 고양이는 그리지 않는다
         if (map !== player.map) {
-          dog.active = false;
-          return false;
+          cat.active = false;
+          return;
         }
-        const changed = d.owner !== dog.owner;
-        if (!dog.active || map !== dog.map) {
-          dog.x = d.x;
-          dog.y = d.y;
-          dog.map = map;
-          dog.active = true;
+        if (!cat.active || map !== cat.map) {
+          cat.x = d.x;
+          cat.y = d.y;
+          cat.map = map;
+          cat.active = true;
         }
-        dog.tx = d.x;
-        dog.ty = d.y;
-        dog.dir = d.dir;
-        dog.moving = !!d.moving;
-        dog.owner = d.owner;
-        return changed;
+        cat.tx = d.x;
+        cat.ty = d.y;
+        cat.dir = d.dir;
+        cat.pose = d.pose;
+        cat.moving = d.pose === 'walk';
       },
 
       get count() {
@@ -1698,7 +1643,7 @@
   }
 
   // 인벤토리 미리보기가 같은 그림을 쓰도록 내보낸다
-  PX.sprites = { drawPerson, drawRider, drawDog };
+  PX.sprites = { drawPerson, drawRider };
 
   PX.createScene = createScene;
 })();
