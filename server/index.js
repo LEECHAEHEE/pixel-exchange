@@ -17,6 +17,7 @@ const { createUsStocks } = require('./us');
 const { createRace } = require('./race');
 const { loadCatalog } = require('./catalog');
 const { createAccounts } = require('./accounts');
+const { createSimilarity } = require('./similarity');
 
 const PORT = Number(process.env.PORT) || 5178;
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
@@ -110,7 +111,7 @@ const race = createRace({
 const accounts = createAccounts({ catalog: loadCatalog(), env: process.env });
 const coins = createCoins(process.env);
 const usStocks = createUsStocks();
-room = createRoom({ market, race, accounts, coins, usStocks });
+room = createRoom({ market, race, accounts, coins, usStocks, similarity: createSimilarity(process.env) });
 // 코인·미장 시세는 그 방을 보는 사람에게만 보낸다
 coins.attach(msg => room.sendMap('coin', msg));
 usStocks.attach(msg => room.sendMap('us', msg));

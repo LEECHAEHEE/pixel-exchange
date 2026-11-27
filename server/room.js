@@ -3,7 +3,7 @@
 'use strict';
 
 const { createCat } = require('./cat');
-const { createMafia } = require('./mafia');
+const { createHiddenWord } = require('./hiddenword');
 const { createStable } = require('./stable');
 const { createFutsal } = require('./futsal');
 
@@ -12,7 +12,7 @@ const SEAT_COUNT = 42;
 // 장소마다 걸을 수 있는 모양이 달라 서버는 화면(320×180) 안인지만 본다
 const BOUNDS = { x0: 0, y0: 0, x1: 319, y1: 179 };
 // 객장(의자가 있는 곳)과 public/js/places.js 의 장소들
-const MAPS = new Set(['exchange', 'coin', 'us', 'crossroad', 'racetrack', 'mafiazone', 'futsal']);
+const MAPS = new Set(['exchange', 'coin', 'us', 'crossroad', 'racetrack', 'hiddenword', 'futsal']);
 const DIRS = new Set(['up', 'down', 'left', 'right']);
 // 감정표현 종류. 화면(emote.js·scene.js)에 새 표현을 넣으면 여기도 추가한다.
 const EMOTES = new Set(['bow', 'smoke']);
@@ -67,12 +67,12 @@ function clampNum(v, lo, hi) {
   return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : null;
 }
 
-function createRoom({ market, race, accounts, coins, usStocks }) {
+function createRoom({ market, race, accounts, coins, usStocks, similarity }) {
   const users = new Map();
   const seats = new Array(SEAT_COUNT).fill(null);
   const dirty = new Set();
   const history = [];
-  const mafia = createMafia({ send });
+  const hw = createHiddenWord({ send, similarity });
   // 고양이 소식은 고양이가 있는 장소를 보는 사람에게만 보낸다
   const cat = createCat({ broadcast: msg => sendMap(msg.map, msg) });
   // 경마장 마굿간 말과 관리인. 말을 탔는지는 모두에게, 관리인 위치는 경마장을 보는 사람에게만 보낸다.
@@ -181,7 +181,7 @@ function createRoom({ market, race, accounts, coins, usStocks }) {
     if (u.seat !== null) seats[u.seat] = null;
     race.leave(u.id);
     stable.leave(u);
-    if (u.map === 'mafiazone') mafia.leave(u);
+    if (u.map === 'hiddenword') hw.leave(u);
     if (u.map === 'futsal') futsal.leave(u);
     users.delete(u.id);
     accounts.leave(u.account);
@@ -201,9 +201,9 @@ function createRoom({ market, race, accounts, coins, usStocks }) {
     // 풋살장에는 말을 타고 들어갈 수 없다. 내리고 말은 마굿간으로 돌려보낸다.
     if (u.map === 'futsal') stable.dismount(u, 'futsal');
     broadcast({ t: 'go', id: u.id, map: u.map, x: u.x, y: u.y, dir: u.dir }, u.id);
-    // 마피아존 입장/퇴장 → 마피아 게임 참가/이탈
-    if (prevMap === 'mafiazone' && u.map !== 'mafiazone') mafia.leave(u);
-    if (u.map === 'mafiazone' && prevMap !== 'mafiazone') mafia.enter(u);
+    // 히든 워드 게임장 입장/퇴장. 게임 중에 나가면 그 사람 차례는 건너뛴다.
+    if (prevMap === 'hiddenword' && u.map !== 'hiddenword') hw.leave(u);
+    if (u.map === 'hiddenword' && prevMap !== 'hiddenword') hw.enter(u);
     // 풋살장 입장/퇴장 → 관전자로 들어오고, 나가면 팀에서 빠진다
     if (prevMap === 'futsal' && u.map !== 'futsal') futsal.leave(u);
     if (u.map === 'futsal' && prevMap !== 'futsal') futsal.enter(u);
@@ -333,22 +333,18 @@ function createRoom({ market, race, accounts, coins, usStocks }) {
         const text = cleanText(msg.text, CHAT_MAX);
         if (!text) return;
         u.lastChat = now;
-        // 마피아존 안에서는 게임 전용 채널로 격리한다(존 밖으로 새지 않음)
-        if (u.map === 'mafiazone') { mafia.handleChat(u, text); return; }
-        // 존 밖 전역 채팅: 마피아존에 있는 사람에게는 보내지 않는다
         history.push({ name: u.name, text, at: now });
         if (history.length > HISTORY_MAX) history.shift();
         const data = JSON.stringify({ t: 'chat', id: u.id, name: u.name, text, at: now });
-        for (const o of users.values()) if (o.map !== 'mafiazone' && o.ws.readyState === 1) o.ws.send(data);
+        for (const o of users.values()) if (o.ws.readyState === 1) o.ws.send(data);
         return;
       }
-      // 마피아존 전용 메시지는 존 안에 있을 때만 게임 매니저로 넘긴다
-      case 'mzReady':
-      case 'mzNight':
-      case 'mzVote':
-      case 'mzConfirm':
-      case 'mzSkip':
-        if (u.map === 'mafiazone') mafia.handle(u, msg);
+      // 히든 워드 메시지는 게임장 안에 있을 때만 넘긴다
+      case 'hwSeat':
+      case 'hwPick':
+      case 'hwHint':
+      case 'hwGuess':
+        if (u.map === 'hiddenword') hw.handle(u, msg);
         return;
       // 풋살장 전용 메시지도 장소 안에 있을 때만 넘긴다
       case 'fsTeam':

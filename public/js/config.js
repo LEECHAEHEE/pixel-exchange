@@ -19,12 +19,11 @@ PX.config = {
     { map: 'crossroad', x: 180, y: 8, w: 70, h: 9, text: '↑ 도트증권 객장' },
     { map: 'crossroad', x: 188, y: 160, w: 52, h: 9, text: '경마장 ↓' },
     { map: 'crossroad', x: 6, y: 120, w: 46, h: 9, text: '← 풋살장' },
-    { map: 'crossroad', x: 250, y: 120, w: 64, h: 9, text: '마피아존 →' },
+    { map: 'crossroad', x: 250, y: 120, w: 64, h: 9, text: '히든 워드 →' },
     { map: 'racetrack', x: 120, y: 2, w: 80, h: 9, text: '도트 경마장', cls: 'gate' },
     { map: 'racetrack', x: 178, y: 20, w: 40, h: 8, text: '↑ 사거리' },
-    { map: 'mafiazone', x: 110, y: 9, w: 100, h: 9, text: '마피아 게임장', cls: 'gate' },
-    { map: 'mafiazone', x: 116, y: 62, w: 88, h: 8, text: '사회자(Claude)' },
-    { map: 'mafiazone', x: 14, y: 74, w: 44, h: 8, text: '← 통로' },
+    // 히든 워드 게임장 제목은 벽 전광판(hiddenword.js)이 대신한다
+    { map: 'hiddenword', x: 14, y: 74, w: 44, h: 8, text: '← 통로' },
     // 풋살장 점수판은 futsal.js 가 관중석 가운데(places.js FS.board)에 띄운다
     { map: 'futsal', x: 10, y: 7, w: 80, h: 10, text: '도트 풋살장', cls: 'gate' },
     { map: 'futsal', x: 268, y: 15, w: 44, h: 8, text: '사거리 →' },

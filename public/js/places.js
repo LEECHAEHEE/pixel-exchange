@@ -1,4 +1,4 @@
-// 객장 밖 장소들: 빨간 복도 사거리, 경마장, 마피아존, 풋살장. 모두 위에서 내려다본 시점이다.
+// 객장 밖 장소들: 빨간 복도 사거리, 경마장, 히든 워드 게임장, 풋살장. 모두 위에서 내려다본 시점이다.
 // 장소 하나는 { paint, walk, blocks, exits } 로 이루어지고 scene.js 가 객장과 같은 방식으로 다룬다.
 //   walk   발 위치가 이 사각형들 중 하나 안에 있어야 서 있을 수 있다
 //   blocks 발 주변이 겹치면 막힌다(바리케이드 등)
@@ -34,7 +34,7 @@
   // ---------- 사거리 ----------
 
   // 객장 가운데 빨간 복도가 이어지는 실내 복도 사거리.
-  // 세로 복도는 위로 객장, 아래로 경마장. 가로 복도 왼쪽은 풋살장, 오른쪽은 마피아존.
+  // 세로 복도는 위로 객장, 아래로 경마장. 가로 복도 왼쪽은 풋살장, 오른쪽은 히든 워드 게임장.
   // 카펫 폭·위치는 객장 카펫(x 148~172)과 맞춰 이어져 보이게 한다.
   const HALL_X = 132, HALL_W = 56;   // 세로 복도(바닥)
   const HALL_Y = 62, HALL_H = 56;    // 가로 복도(바닥)
@@ -114,7 +114,7 @@
     rect(g, 0, HALL_Y + HALL_H - 3, 7, 3, '#226a34');
     rect(g, 9, HALL_Y + 22, 14, HALL_H - 44, '#3b4a3e');
     for (let y = HALL_Y + 24; y < HALL_Y + HALL_H - 22; y += 3) rect(g, 10, y, 12, 1, '#55675a');
-    // 오른쪽: 마피아존 입구(붉은 카펫이 이어지는 통로). 핑크 문틀.
+    // 오른쪽: 히든 워드 게임장 입구(붉은 카펫이 이어지는 통로). 핑크 문틀.
     carpetRun(g, W - 30, HALL_Y + 20, 30, HALL_H - 40, false);
     rect(g, W - 7, HALL_Y, 7, HALL_H, '#c21e63');
     rect(g, W - 9, HALL_Y, 2, HALL_H, PAL.outline);
@@ -143,7 +143,7 @@
     exits: [
       { x: HALL_X, y: 0, w: HALL_W, h: 2, to: 'exchange', spawn: { x: 160, y: 168, dir: 'up' } },
       { x: HALL_X, y: H - 3, w: HALL_W, h: 3, to: 'racetrack', spawn: { x: 160, y: 38, dir: 'down' } },
-      { x: W - 3, y: HALL_Y + 18, w: 3, h: HALL_H - 20, to: 'mafiazone', spawn: { x: 24, y: 96, dir: 'right' } },
+      { x: W - 3, y: HALL_Y + 18, w: 3, h: HALL_H - 20, to: 'hiddenword', spawn: { x: 24, y: 96, dir: 'right' } },
       // 풋살장 오른쪽 위 문으로 들어간다(관람 통로)
       { x: 0, y: HALL_Y + 18, w: 3, h: HALL_H - 20, to: 'futsal', spawn: { x: 300, y: 33, dir: 'left' } }
     ]
@@ -399,79 +399,80 @@
     decorate
   };
 
-  // ---------- 마피아존 ----------
+  // ---------- 히든 워드 게임장 ----------
 
-  // 오징어게임풍 아레나. 왼쪽 문으로 통로와 이어진다. 가운데 ○△□, 위쪽 핑크 벽에 사회자 단상.
-  const MZ = { wallH: 36, host: { x: 160, y: 52 } };
+  // 퀴즈쇼 무대. 위쪽 벽에 힌트 전광판(글씨는 hiddenword.js 가 DOM 으로), 가운데 둥근 탁자와 둘레 방석 6개.
+  // 왼쪽 문으로 사거리와 이어진다. 방석 자리는 server/hiddenword.js 의 SEAT_POS 와 같아야 한다.
+  const HW = {
+    wallH: 46,
+    table: { cx: 160, cy: 110, rx: 34, ry: 20 },
+    seats: Array.from({ length: 6 }, (_, i) => {
+      const a = (-90 + i * 60) * Math.PI / 180;
+      return { x: Math.round(160 + 58 * Math.cos(a)), y: Math.round(110 + 40 * Math.sin(a)) };
+    }),
+    // 방석 위에 섰다고 보는 범위(발 기준, 방석 가운데에서)
+    seatR: 7
+  };
+  const HW_COL = {
+    floor: '#2b2f4a', floorLine: '#343957', wall: '#171a2e', wallLine: '#22264040', gold: '#e2b84a', goldDark: '#a8832c',
+    board: '#0b0d18', tableTop: '#8a5a34', tableHi: '#a8743f', tableEdge: '#5e3a22', seat: ['#d8434b', '#e8a23a', '#4bb46a', '#3f8fd8', '#9b5bd0', '#e06aa8']
+  };
 
-  function ringSym(g, cx, cy, r, th, col, floor) { disc(g, cx, cy, r, col, col); disc(g, cx, cy, r - th, floor, floor); }
-  function boxSym(g, cx, cy, s, th, col, floor) { const h = s / 2; rect(g, cx - h, cy - h, s, s, col); rect(g, cx - h + th, cy - h + th, s - th * 2, s - th * 2, floor); }
-  function triSym(g, cx, topY, hgt, th, col, floor) {
-    const fill = (ty, hh, c) => { for (let i = 0; i <= hh; i++) { const half = Math.round((i / hh) * hh * 0.95); rect(g, cx - half, ty + i, half * 2 + 1, 1, c); } };
-    fill(topY, hgt, col); fill(topY + th + 1, hgt - th * 2, floor);
+  function ellipse(g, cx, cy, rx, ry, col) {
+    for (let y = -ry; y <= ry; y++) {
+      const half = Math.round(rx * Math.sqrt(Math.max(0, 1 - (y * y) / (ry * ry))));
+      rect(g, cx - half, cy + y, half * 2 + 1, 1, col);
+    }
   }
 
-  // 정장 차림 사회자(Claude) NPC — rect 로만 그린 작은 도트 인물
-  function hostNpc(g, x, y) {
-    rect(g, x - 5, y + 1, 10, 2, 'rgba(0,0,0,0.22)');       // 그림자
-    rect(g, x - 3, y - 3, 3, 3, '#20242e'); rect(g, x + 1, y - 3, 3, 3, '#20242e'); // 바지
-    rect(g, x - 4, y - 9, 8, 6, '#242a36');                  // 재킷
-    rect(g, x - 1, y - 9, 2, 6, '#e8e8e8');                  // 흰 셔츠
-    rect(g, x - 1, y - 8, 2, 2, '#b23a3a');                  // 넥타이
-    rect(g, x - 4, y - 15, 8, 6, '#f2c39b');                 // 얼굴
-    rect(g, x - 4, y - 16, 8, 3, '#141414');                 // 머리
-    rect(g, x - 2, y - 12, 1, 1, '#2a1a14'); rect(g, x + 1, y - 12, 1, 1, '#2a1a14'); // 눈
-  }
-
-  const FLOOR = '#c7a977';
-
-  function paintMafiazone() {
+  function paintHiddenword() {
     const { c, g } = makeCanvas(W, H);
-    // 바닥(모래)
-    rect(g, 0, 0, W, H, FLOOR);
-    for (let y = MZ.wallH; y < H; y += 8) rect(g, 0, y, W, 1, '#bb9c6b');
-    // 위쪽 핑크 벽
-    rect(g, 0, 0, W, MZ.wallH, '#c21e63');
-    rect(g, 0, 0, W, 8, '#a3134f');
-    for (let x = 0; x < W; x += 20) rect(g, x, 0, 1, MZ.wallH, '#ad1657');
-    rect(g, 0, MZ.wallH - 3, W, 3, '#7a0f3c');
-    rect(g, 0, MZ.wallH - 1, W, 1, PAL.outline);
-    // 사회자 단상 + NPC
-    rect(g, MZ.host.x - 12, MZ.host.y + 1, 24, 4, '#3a2a1a');
-    rect(g, MZ.host.x - 12, MZ.host.y + 1, 24, 1, '#5a4330');
-    hostNpc(g, MZ.host.x, MZ.host.y);
-    // 벽 현판(글씨는 DOM)
-    rect(g, W / 2 - 46, 6, 92, 2, '#f1cf5a');
-    rect(g, W / 2 - 46, 24, 92, 2, '#f1cf5a');
-    // 경기장 테두리
-    rect(g, 8, MZ.wallH + 4, W - 16, 2, '#ede3cf');
-    rect(g, 8, H - 6, W - 16, 2, '#ede3cf');
-    rect(g, 8, MZ.wallH + 4, 2, H - MZ.wallH - 10, '#ede3cf');
-    rect(g, W - 10, MZ.wallH + 4, 2, H - MZ.wallH - 10, '#ede3cf');
-    // 바닥 심볼 ○ △ □ (핑크)
-    const SC = '#d9397e', sy = 120;
-    ringSym(g, 70, sy, 22, 5, SC, FLOOR);
-    triSym(g, 160, sy - 20, 40, 5, SC, FLOOR);
-    boxSym(g, 250, sy, 38, 5, SC, FLOOR);
+    // 바닥: 짙은 남색 카펫
+    rect(g, 0, 0, W, H, HW_COL.floor);
+    for (let y = HW.wallH; y < H; y += 6) rect(g, 0, y, W, 1, HW_COL.floorLine);
+    // 위쪽 벽과 전광판 테
+    rect(g, 0, 0, W, HW.wallH, HW_COL.wall);
+    rect(g, 0, HW.wallH - 3, W, 3, HW_COL.goldDark);
+    rect(g, 0, HW.wallH - 1, W, 1, PAL.outline);
+    rect(g, 62, 2, 196, 41, HW_COL.gold);
+    rect(g, 63, 3, 194, 39, HW_COL.board);
+    // 방석
+    HW.seats.forEach((s, i) => {
+      ellipse(g, s.x, s.y + 1, 8, 4, 'rgba(0,0,0,0.3)');
+      ellipse(g, s.x, s.y, 8, 4, PAL.outline);
+      ellipse(g, s.x, s.y, 7, 3, HW_COL.seat[i]);
+      rect(g, s.x - 3, s.y - 2, 6, 1, 'rgba(255,255,255,0.35)');
+    });
+    // 둥근 탁자
+    const t = HW.table;
+    ellipse(g, t.cx, t.cy + 4, t.rx, t.ry, HW_COL.tableEdge);
+    ellipse(g, t.cx, t.cy, t.rx, t.ry, PAL.outline);
+    ellipse(g, t.cx, t.cy, t.rx - 1, t.ry - 1, HW_COL.tableTop);
+    ellipse(g, t.cx - 4, t.cy - 4, t.rx - 12, t.ry - 9, HW_COL.tableHi);
     // 왼쪽 입구(통로로 이어지는 붉은 카펫)
     rect(g, 0, 84, 16, 28, PAL.carpetEdge);
     rect(g, 0, 88, 14, 20, PAL.carpet);
     return c;
   }
 
-  const mafiazone = {
-    paint: paintMafiazone,
+  // 탁자는 가로 띠 몇 개로 막는다(타원 모양에 가깝게)
+  const tableBlocks = [[-28, -16, 56, 6], [-34, -10, 68, 18], [-28, 8, 56, 6]].map(([x, y, w, h]) => (
+    { x: HW.table.cx + x, y: HW.table.cy + y, w, h }
+  ));
+
+  const hiddenword = {
+    paint: paintHiddenword,
+    hw: HW,
     walk: [
-      { x: 12, y: MZ.wallH + 8, w: W - 24, h: H - MZ.wallH - 16 },
+      { x: 12, y: HW.wallH + 6, w: W - 24, h: H - HW.wallH - 10 },
       { x: 0, y: 88, w: 16, h: 20 }
     ],
-    blocks: [
-      // 사회자 단상 근처는 막는다
-      { x: MZ.host.x - 12, y: MZ.host.y - 4, w: 24, h: 10 }
-    ],
+    blocks: tableBlocks,
     exits: [
       { x: 0, y: 86, w: 3, h: 24, to: 'crossroad', spawn: { x: W - 16, y: 90, dir: 'left' } }
-    ]
+    ],
+    // 게임 중 참가자는 자기 방석 위에만 있을 수 있다(hiddenword.js 가 정한다)
+    confine: (x, y) => (PX.hw ? PX.hw.allowed(x, y) : true)
   };
 
   // ---------- 풋살장 ----------
@@ -715,5 +716,5 @@
     dress: (who, look) => (PX.futsal ? PX.futsal.dress(who, look) : null)
   };
 
-  PX.places = { crossroad, racetrack, mafiazone, futsal };
+  PX.places = { crossroad, racetrack, hiddenword, futsal };
 })();

@@ -389,7 +389,7 @@
     near: 'Space 로 앉기',
     talk: 'Space 로 상점 주인에게 말 걸기',
     seated: 'Space 또는 ↓ ← → 로 일어나기',
-    'crossroad:free': '↑ 객장 · ↓ 경마장 · ← 풋살장 · → 마피아존 · [Esc] 조작 방법',
+    'crossroad:free': '↑ 객장 · ↓ 경마장 · ← 풋살장 · → 히든 워드 · [Esc] 조작 방법',
     'coin:free': '← 국장 · 미장 → · [Esc] 조작 방법',
     'us:free': '← 코인 · 국장 → · [Esc] 조작 방법',
     // 풋살장은 팀·공 상태로 고른다(futsal.prompt)
@@ -399,12 +399,13 @@
     'futsal:ball': 'S 패스 · D 누르고 있다 떼면 슛(오래 누를수록 세게) · 방향키 드리블',
     'futsal:watch': '벤치에서 관전 중 · 경기가 끝나면 팀 참가 가능 · 오른쪽 아래 문으로 나가기',
     'racetrack:free': '1~5 키·전광판 클릭으로 우승마 투표 · [Esc] 조작 방법',
+    'hiddenword:free': '탁자 둘레 방석에 3명 이상 서면 시작 · 게임이 끝나면 내려왔다 다시 올라서기 · [Esc] 조작 방법',
     'racetrack:steal': 'Space 로 말 훔쳐 타기 · 관리인에게 잡히면 뺏긴다! 경마장 밖으로 달아나자',
     'racetrack:return': 'Space 로 말 돌려놓기',
     'racetrack:empty': '빈 칸입니다. 누가 말을 훔쳐 갔어요',
     // 말 탄 채 아무것도 바라보지 않을 때. 이 장소 문구가 없으면 그 장소의 free 문구를 쓴다.
     ride: 'F 로 앞발차기 · [Esc] 조작 방법',
-    'crossroad:ride': 'F 로 앞발차기 · ↑ 객장 · ↓ 경마장 · ← 풋살장 · → 마피아존',
+    'crossroad:ride': 'F 로 앞발차기 · ↑ 객장 · ↓ 경마장 · ← 풋살장 · → 히든 워드',
     'racetrack:ride': 'F 로 앞발차기 · 관리인에게 잡히면 뺏긴다! 경마장 밖으로 달아나자'
   };
   let hintState = 'free';
@@ -431,7 +432,8 @@
         if (h.el.hidden === show) h.el.hidden = !show;
       }
     }
-    mafia.setMap(scene.map);
+    hiddenword.setMap(scene.map);
+    hiddenword.update();
     const state = scene.map === 'exchange' ? scene.prompt()
       : scene.map === 'futsal' ? 'futsal:' + futsal.prompt()
       : scene.map + ':' + scene.prompt();
@@ -471,9 +473,9 @@
     if (m.status) board.setStatus(m.status.text, m.status.live);
   }
 
-  // 마피아존 UI (scene.map==='mafiazone' 일 때만 보인다). mz* 메시지를 처리한다.
-  const mafia = PX.createMafia({ scene, chat, whoOf, send: (m) => net.send(m) });
-  PX.mafia = mafia;
+  // 히든 워드 게임장 UI (scene.map==='hiddenword' 일 때만 보인다). hw* 메시지를 처리한다.
+  const hiddenword = PX.createHiddenWord({ stage, scene, chat, send: (m) => net.send(m), place });
+  PX.hw = hiddenword;
   // 풋살장 UI (scene.map==='futsal' 일 때만 보인다). fs* 메시지를 처리하고 공을 그릴 상태를 places.js 에 준다.
   const futsal = PX.createFutsal({ stage, scene, chat, whoOf, send: (m) => net.send(m), place });
   PX.futsal = futsal;
@@ -487,11 +489,12 @@
       if (state === 'connecting') onlineEl.textContent = '연결 중';
       if (state === 'closed') onlineEl.textContent = '연결 끊김 · 재접속 대기';
     },
-    handlers: Object.assign({}, mafia.handlers, futsal.handlers, {
+    handlers: Object.assign({}, hiddenword.handlers, futsal.handlers, {
       welcome(msg) {
         // 재접속이면 이전 사람들의 말풍선·닉네임표를 먼저 치운다
         for (const [id] of scene.net.names()) chat.remove(id);
         myId = msg.me.id;
+        hiddenword.setMe(myId);
         if (msg.inv) {
           inventory.setState(msg.inv);
           shop.setBalance(msg.inv.balance);

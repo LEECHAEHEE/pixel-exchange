@@ -12,6 +12,7 @@
     "node": ">=20"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.14.0",
     "ws": "8.21.3"
   }
 }

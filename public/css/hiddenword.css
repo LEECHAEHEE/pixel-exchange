@@ -1,0 +1,99 @@
+/* 히든 워드 게임장 UI. scene.map === 'hiddenword' 일 때만 #hw-ui 가 보인다.
+   자리는 논리 픽셀(--x, --y, --w, --h)에 화면 배율 --ps 를 곱해 캔버스 그림과 맞춘다. */
+#hw-ui { position: absolute; inset: 0; z-index: 4; pointer-events: none; font-family: var(--font); color: #eef0f8; }
+#hw-ui[hidden], #hw-ui [hidden] { display: none !important; }
+.stage:not([data-map='hiddenword']) #hw-ui { display: none; }
+
+.hw-board, .hw-me, .hw-score, .hw-center, .hw-input, .hw-toast {
+  position: absolute;
+  left: calc(var(--x) * var(--ps) * 1px);
+  top: calc(var(--y) * var(--ps) * 1px);
+  width: calc(var(--w) * var(--ps) * 1px);
+  height: calc(var(--h) * var(--ps) * 1px);
+  box-sizing: border-box;
+}
+
+/* ---------- 벽 전광판 ---------- */
+.hw-board {
+  padding: calc(var(--ps) * 1.5px) calc(var(--ps) * 3px);
+  font-size: max(10px, calc(var(--ps) * 3.4px)); line-height: 1.25;
+  display: flex; flex-direction: column; gap: calc(var(--ps) * 0.8px); overflow: hidden;
+}
+.hw-head { display: flex; justify-content: space-between; color: #f1cf5a; white-space: nowrap; }
+.hw-title { overflow: hidden; text-overflow: ellipsis; }
+.hw-timer { font-family: var(--mono); color: #ffe27a; margin-left: calc(var(--ps) * 2px); }
+/* 힌트 5개가 작은 화면에서도 들어가도록 두 줄로 나눠 놓는다(3줄) */
+.hw-hints {
+  margin: 0; padding: 0; list-style: none;
+  display: grid; grid-template-columns: 1fr 1fr; column-gap: calc(var(--ps) * 4px); row-gap: calc(var(--ps) * 0.4px);
+}
+.hw-hint { display: grid; grid-template-columns: 4.6em 1fr 3.6em; align-items: center; gap: calc(var(--ps) * 1px); min-width: 0; }
+.hw-hint.wait { display: block; grid-column: 1 / -1; color: #8d93b4; }
+.hw-hint.key { color: #ffe27a; }
+.hw-hw { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 5~8자 힌트는 칸에 다 보이도록 글자를 줄인다 */
+.hw-hw.long { font-size: 0.62em; }
+.hw-bar { height: calc(var(--ps) * 1.6px); background: #23284a; border-radius: calc(var(--ps) * 0.4px); overflow: hidden; }
+.hw-bar i { display: block; height: 100%; background: linear-gradient(90deg, #4b7bd8, #f1cf5a); }
+.hw-pct { font-family: var(--mono); text-align: right; }
+
+/* ---------- 왼쪽 벽: 내 히든 워드 ---------- */
+.hw-me {
+  padding: calc(var(--ps) * 1.5px); border: calc(var(--ps) * 0.5px) solid #a8832c; border-radius: calc(var(--ps) * 1px);
+  background: rgba(11, 13, 24, 0.9); font-size: max(10px, calc(var(--ps) * 3px)); line-height: 1.25;
+  display: flex; flex-direction: column; justify-content: center; text-align: center; gap: calc(var(--ps) * 1px);
+}
+.hw-mlabel { color: #8d93b4; }
+.hw-mword { color: #ffe27a; font-size: 1.5em; word-break: keep-all; }
+.hw-mtip { color: #c9cde0; font-size: 0.9em; word-break: keep-all; }
+
+/* ---------- 오른쪽 벽: 점수 ---------- */
+.hw-score {
+  padding: calc(var(--ps) * 1.2px) calc(var(--ps) * 1.5px); border: calc(var(--ps) * 0.5px) solid #a8832c; border-radius: calc(var(--ps) * 1px);
+  background: rgba(11, 13, 24, 0.9); font-size: max(9px, calc(var(--ps) * 2.8px)); line-height: 1.2; overflow: hidden;
+}
+.hw-shead { color: #f1cf5a; margin-bottom: calc(var(--ps) * 0.5px); }
+.hw-prow { display: flex; gap: calc(var(--ps) * 1px); white-space: nowrap; }
+.hw-prow .hw-pn { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.hw-prow .hw-pm { color: #6fe08a; }
+.hw-prow b { font-weight: normal; color: #ffe27a; font-family: var(--mono); }
+.hw-prow.setter .hw-pn { color: #ffb86b; }
+.hw-prow.gone { color: #6b708c; text-decoration: line-through; }
+
+/* ---------- 가운데: 카운트다운·봉투·공개·순위 ---------- */
+.hw-center {
+  pointer-events: auto;
+  padding: calc(var(--ps) * 2px); border: calc(var(--ps) * 0.5px) solid #f1cf5a; border-radius: calc(var(--ps) * 1.5px);
+  background: rgba(11, 13, 24, 0.92); font-size: max(10px, calc(var(--ps) * 3.2px)); line-height: 1.25;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--ps) * 1.5px);
+  text-align: center; overflow: hidden;
+}
+.hw-big { font-size: 4em; color: #ffe27a; font-family: var(--mono); line-height: 1; }
+.hw-ctitle { color: #f1cf5a; }
+.hw-csub { color: #8d93b4; }
+.hw-env { display: flex; flex-wrap: wrap; justify-content: center; gap: calc(var(--ps) * 1.5px); }
+.hw-env button {
+  font: inherit; cursor: pointer; color: #1b1410; background: #e9e5da; border: 0;
+  padding: calc(var(--ps) * 0.8px) calc(var(--ps) * 2.5px); border-radius: calc(var(--ps) * 0.6px);
+}
+.hw-env button:hover { background: #ffe27a; }
+.hw-glist { display: flex; flex-direction: column; gap: calc(var(--ps) * 0.3px); max-height: 100%; overflow: auto; }
+.hw-g { color: #c9cde0; white-space: nowrap; }
+.hw-g.ok { color: #6fe08a; }
+
+/* ---------- 아래: 힌트·정답 입력 ---------- */
+.hw-input { pointer-events: auto; display: flex; gap: calc(var(--ps) * 1px); font-size: max(11px, calc(var(--ps) * 3.2px)); }
+.hw-input input {
+  flex: 1; min-width: 0; font: inherit; color: #1b1410; background: #f4f1e6;
+  border: calc(var(--ps) * 0.5px) solid #f1cf5a; border-radius: calc(var(--ps) * 0.6px); padding: 0 calc(var(--ps) * 1.5px);
+}
+.hw-input button {
+  font: inherit; cursor: pointer; color: #1b1410; background: var(--gold); border: 0;
+  border-radius: calc(var(--ps) * 0.6px); padding: 0 calc(var(--ps) * 2px);
+}
+.hw-input button:disabled { background: #6b708c; cursor: default; }
+
+.hw-toast {
+  text-align: center; font-size: max(10px, calc(var(--ps) * 3px)); line-height: calc(var(--h) * var(--ps) * 1px);
+  color: #1b1410; background: #ffe27a; border-radius: calc(var(--ps) * 0.6px); white-space: nowrap; overflow: hidden;
+}
