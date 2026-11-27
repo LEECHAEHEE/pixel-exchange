@@ -6,6 +6,39 @@
   const MIN_PLAYERS = 3;
   const MAX_HINTS = 5;
 
+  // 도트 눈 아이콘(11 x 7). # 은 테두리, o 는 눈동자, . 은 흰자, 공백은 투명.
+  // 감은 눈과 뜬 눈을 겹쳐 두고 CSS 가 마우스를 올렸는지에 따라 하나만 보인다.
+  const EYE_OPEN = [
+    '   #####   ',
+    ' ##.....## ',
+    '#...ooo...#',
+    '#..ooooo..#',
+    '#...ooo...#',
+    ' ##.....## ',
+    '   #####   '
+  ];
+  const EYE_SHUT = [
+    '           ',
+    '           ',
+    '#         #',
+    ' ##     ## ',
+    '   #####   ',
+    '  #  #  #  ',
+    '           '
+  ];
+  const EYE_COL = { '#': '#e9e5da', '.': '#2b2f4a', o: '#ffe27a' };
+  function eyeRects(rows, cls) {
+    let s = `<g class="${cls}">`;
+    rows.forEach((row, y) => {
+      for (let x = 0; x < row.length; x++) {
+        const c = EYE_COL[row[x]];
+        if (c) s += `<rect x="${x}" y="${y}" width="1" height="1" fill="${c}"/>`;
+      }
+    });
+    return s + '</g>';
+  }
+  const EYE_SVG = `<svg viewBox="0 0 11 7" shape-rendering="crispEdges" aria-hidden="true">${eyeRects(EYE_SHUT, 'shut')}${eyeRects(EYE_OPEN, 'open')}</svg>`;
+
   function el(tag, cls, text) {
     const e = document.createElement(tag);
     if (cls) e.className = cls;
@@ -79,6 +112,11 @@
     }
 
     // ---------- 그리기 ----------
+    // 카운트다운에 보일 숫자(5 → 1)
+    function secLeft() {
+      return Math.max(1, Math.ceil((st.endsAt - Date.now()) / 1000));
+    }
+
     function fmt(ms) {
       const s = Math.max(0, Math.ceil(ms / 1000));
       return s >= 60 ? Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0') : s + '초';
@@ -93,19 +131,16 @@
       else if (s.phase === 'reveal') title = `${nameOf(s.setter)} 님의 히든 워드 공개`;
       titleEl.textContent = title;
       hintsEl.replaceChildren();
+      // 카운트다운 동안은 제목 줄을 숨기고 문구만 전광판 한가운데에 둔다
+      boardEl.classList.toggle('countdown', s.phase === 'countdown');
       for (let i = 0; i < s.hints.length; i++) {
         const h = s.hints[i];
-        const li = el('li', 'hw-hint' + (i === s.key ? ' key' : ''));
-        li.append(el('span', 'hw-hw' + (h.word.length > 4 ? ' long' : ''), h.word));
-        const bar = el('span', 'hw-bar');
-        bar.append(el('i'));
-        bar.firstChild.style.width = h.score + '%';
-        li.append(bar, el('span', 'hw-pct', h.score.toFixed(1) + '%'));
-        hintsEl.append(li);
+        hintsEl.append(el('li', 'hw-hint' + (i === s.key ? ' key' : ''), `${h.word} [${h.score.toFixed(1)}%]`));
       }
       if (s.phase === 'hint' && s.scoring) hintsEl.append(el('li', 'hw-hint wait', '유사도 계산 중…'));
       if (!s.hints.length && !s.scoring) {
-        const msg = s.phase === 'hint' ? '출제자가 힌트를 고르는 중입니다'
+        const msg = s.phase === 'countdown' ? `${secLeft()}초 후 게임이 시작됩니다`
+          : s.phase === 'hint' ? '출제자가 힌트를 고르는 중입니다'
           : s.phase === 'lobby' ? '유사도는 Claude 가 0~100% 로 매깁니다. 95% 이상이면 힌트가 바로 끝나요'
           : '';
         if (msg) hintsEl.append(el('li', 'hw-hint wait', msg));
@@ -134,7 +169,12 @@
       meEl.replaceChildren();
       const p = meP();
       if (p && !p.gone && mine) {
-        meEl.append(el('div', 'hw-mlabel', '내 히든 워드'), el('div', 'hw-mword', mine));
+        // 옆 사람이 화면을 봐도 모르게 평소에는 흐리게, 마우스를 올리면 눈을 뜨며 단어가 보인다
+        const row = el('div', 'hw-mrow');
+        const eye = el('span', 'hw-eye');
+        eye.innerHTML = EYE_SVG;
+        row.append(el('span', 'hw-mword', mine), eye);
+        meEl.append(el('div', 'hw-mlabel', '내 히든 워드'), row);
       } else if (p && !p.gone) {
         meEl.append(el('div', 'hw-mlabel', '내 히든 워드'), el('div', 'hw-mtip', '봉투에서 하나 고르세요'));
       } else if (inGame()) {
@@ -148,9 +188,8 @@
       const s = st;
       centerEl.replaceChildren();
       let show = true;
-      if (s.phase === 'countdown') {
-        centerEl.append(el('div', 'hw-big', String(Math.max(1, Math.ceil((s.endsAt - Date.now()) / 1000)))));
-      } else if (s.phase === 'pick') {
+      // 카운트다운은 벽 전광판에만 보인다
+      if (s.phase === 'pick') {
         const p = meP();
         if (p && !p.gone && !p.picked && envelope.length) {
           centerEl.append(el('div', 'hw-ctitle', '봉투에서 히든 워드를 고르세요'));
@@ -214,7 +253,7 @@
     setInterval(() => {
       if (!inZone) return;
       timerEl.textContent = st.endsAt && st.phase !== 'countdown' ? fmt(st.endsAt - Date.now()) : '';
-      if (st.phase === 'countdown') renderCenter();
+      if (st.phase === 'countdown') renderBoard();
     }, 200);
 
     formEl.addEventListener('submit', (e) => {
@@ -253,6 +292,7 @@
       hwState(m) {
         const was = st.phase;
         st = m;
+        st.endsAt = m.left ? Date.now() + m.left : 0;
         // 새 판이 시작되거나 끝나면 내 단어를 잊는다
         if (st.phase === 'lobby' || (was !== 'pick' && st.phase === 'pick' && !envelope.length)) mine = null;
         if (st.phase === 'lobby') envelope = [];

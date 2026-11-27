@@ -1,7 +1,7 @@
 // 히든 워드 게임장. 'hiddenword' 장소에 들어온 사람만 대상으로 돌아간다.
 // 이동·위치는 room.js/scene.js 가 그대로 처리하고, 이 모듈은 좌석·진행·점수만 맡는다.
 //
-// 흐름: 원형 좌석에 3명 이상 앉으면 3초 카운트다운 → 봉투(명사 5개)에서 히든 워드 고르기 →
+// 흐름: 원형 좌석에 3명 이상 앉으면 5초 카운트다운 → 봉투(명사 5개)에서 히든 워드 고르기 →
 // 무작위 순서로 한 사람씩 출제(힌트 최대 5개, 2분) → 나머지가 정답 쓰기(1분, 동시 공개) → 다음 출제자.
 // 모두 한 번씩 출제하면 끝. 맞힌 사람은 1점, 아무도 못 맞히면 출제자가 1점.
 //
@@ -15,8 +15,8 @@ const { WORDS } = require('./words');
 
 const FAST = process.env.HW_FAST === '1';
 const MS = FAST
-  ? { countdown: 3000, pick: 4000, hint: 20000, guess: 8000, reveal: 2500, end: 4000 }
-  : { countdown: 3000, pick: 20000, hint: 120000, guess: 60000, reveal: 7000, end: 15000 };
+  ? { countdown: 5000, pick: 4000, hint: 20000, guess: 8000, reveal: 2500, end: 4000 }
+  : { countdown: 5000, pick: 20000, hint: 120000, guess: 60000, reveal: 7000, end: 15000 };
 
 const SEATS = 6;
 const MIN_PLAYERS = 3;
@@ -79,7 +79,8 @@ function createHiddenWord({ send, similarity }) {
   function state() {
     const s = setter();
     return {
-      t: 'hwState', phase, endsAt, seats,
+      // 남은 시간은 ms 로 보낸다. 서버와 화면의 시계가 어긋나도 화면이 받은 순간부터 정확히 센다.
+      t: 'hwState', phase, left: endsAt ? Math.max(0, endsAt - Date.now()) : 0, seats,
       players: [...players.values()].map(p => ({ id: p.id, name: p.name, score: p.score, correct: p.correct, gone: p.gone, picked: !!p.hidden })),
       order, setter: s ? s.id : null, turnNo: turn + 1,
       hints, key, scoring,

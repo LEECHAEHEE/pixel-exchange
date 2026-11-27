@@ -499,10 +499,10 @@ function tossSource(market, env, keys, us) {
     // 지난번에 적어 둔 장 끝난 뒤 현재가(서버가 다시 켜져도 오늘 기준가를 맞추려고)
     const saved = await kv.get(SNAP_KEY);
     if (saved && Number.isFinite(saved.at) && saved.prices && typeof saved.prices === 'object') snap = saved;
-    // 첫 순위를 받을 때까지 1분 간격으로 다시 시도한다(허용 IP 미등록 등)
+    // 첫 순위를 받을 때까지 30초 간격으로 다시 시도한다(허용 IP 미등록, 배포 중 옛 서버와 토큰이 엇갈린 경우 등)
     while (!stocks.length) {
       await refreshRanking();
-      if (!stocks.length) await sleep(60000);
+      if (!stocks.length) await sleep(30000);
     }
     setInterval(refreshRanking, rankMs);
     pollLoop();

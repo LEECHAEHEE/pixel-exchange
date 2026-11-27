@@ -6,14 +6,16 @@
 //
 // 환경변수
 //   GEMINI_API_KEY      Gemini API 키(Render 에만 둔다)
-//   HW_GEMINI_MODEL     모델 이름. 기본은 가장 추론이 강한 gemini-4-carbon
+//   HW_GEMINI_MODEL     모델 이름. 기본은 일반 용도 gemini-4-hydrogen
+//                       (가장 강한 gemini-4-carbon 은 단어 두 개 판정에도 30초를 넘겨 바꿨다)
 //   HW_FAKE=1           키 없이 글자로 만든 가짜 점수를 쓴다(로컬 화면 확인용)
 'use strict';
 
 const { GoogleGenAI } = require('@google/genai');
 
-const DEFAULT_MODEL = 'gemini-4-carbon';
-const TIMEOUT_MS = 30000;
+const DEFAULT_MODEL = 'gemini-4-hydrogen';
+// 출제 시간이 2분이라 한 힌트를 그 절반까지는 기다린다
+const TIMEOUT_MS = 60000;
 
 const SYSTEM = `너는 단어 게임 "히든 워드"의 유사도 심판이다. 히든 워드와 힌트 두 한국어 단어가 주어지면 두 가지를 판정한다.
 
@@ -69,6 +71,7 @@ function createSimilarity(env = {}) {
   async function score(hidden, hint) {
     if (fake) return { noun: true, score: fakeScore(hidden, hint) };
     if (!ai) return { error: '서버에 Gemini 키가 없어 유사도를 계산할 수 없습니다' };
+    const t0 = Date.now();
     try {
       const res = await withTimeout(ai.interactions.create({
         model,
@@ -82,9 +85,10 @@ function createSimilarity(env = {}) {
       }), TIMEOUT_MS);
       const j = JSON.parse(res.output_text || '');
       const s = Math.round(Math.min(100, Math.max(0, Number(j.score) || 0)) * 10) / 10;
+      console.log(`[hw] scored in ${Date.now() - t0}ms`);
       return { noun: !!j.noun, score: s };
     } catch (e) {
-      console.warn(`[hw] gemini score failed${e.status ? ' ' + e.status : ''}: ${e.message}`);
+      console.warn(`[hw] gemini score failed after ${Date.now() - t0}ms${e.status ? ' ' + e.status : ''}: ${e.message}`);
       return { error: '유사도 계산에 실패했습니다. 다시 내 주세요' };
     }
   }

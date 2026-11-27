@@ -24,18 +24,17 @@
 .hw-timer { font-family: var(--mono); color: #ffe27a; margin-left: calc(var(--ps) * 2px); }
 /* 힌트 5개가 작은 화면에서도 들어가도록 두 줄로 나눠 놓는다(3줄) */
 .hw-hints {
-  margin: 0; padding: 0; list-style: none;
-  display: grid; grid-template-columns: 1fr 1fr; column-gap: calc(var(--ps) * 4px); row-gap: calc(var(--ps) * 0.4px);
+  margin: 0; padding: 0; list-style: none; flex: 1; min-height: 0;
+  display: grid; grid-template-columns: 1fr 1fr; align-content: start;
+  column-gap: calc(var(--ps) * 4px); row-gap: calc(var(--ps) * 0.4px);
 }
-.hw-hint { display: grid; grid-template-columns: 4.6em 1fr 3.6em; align-items: center; gap: calc(var(--ps) * 1px); min-width: 0; }
-.hw-hint.wait { display: block; grid-column: 1 / -1; color: #8d93b4; }
+.hw-hint { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hw-hint.wait { grid-column: 1 / -1; color: #8d93b4; white-space: normal; }
+/* 시작 카운트다운만 남은 칸 한가운데에 크게 */
+.hw-board.countdown .hw-head { display: none; }
+.hw-board.countdown .hw-hints { align-content: center; }
+.hw-board.countdown .hw-hint { text-align: center; color: #ffe27a; font-size: 1.6em; }
 .hw-hint.key { color: #ffe27a; }
-.hw-hw { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* 5~8자 힌트는 칸에 다 보이도록 글자를 줄인다 */
-.hw-hw.long { font-size: 0.62em; }
-.hw-bar { height: calc(var(--ps) * 1.6px); background: #23284a; border-radius: calc(var(--ps) * 0.4px); overflow: hidden; }
-.hw-bar i { display: block; height: 100%; background: linear-gradient(90deg, #4b7bd8, #f1cf5a); }
-.hw-pct { font-family: var(--mono); text-align: right; }
 
 /* ---------- 왼쪽 벽: 내 히든 워드 ---------- */
 .hw-me {
@@ -45,6 +44,16 @@
 }
 .hw-mlabel { color: #8d93b4; }
 .hw-mword { color: #ffe27a; font-size: 1.5em; word-break: keep-all; }
+/* 내 히든 워드는 평소에 흐리게 두고 눈을 감고 있다. 마우스를 올린 동안 눈을 뜨며 또렷해진다. */
+.hw-me { pointer-events: auto; cursor: default; }
+.hw-mrow { display: flex; align-items: center; justify-content: center; gap: calc(var(--ps) * 1.5px); }
+.hw-me .hw-mword { filter: blur(calc(var(--ps) * 1.2px)); user-select: none; transition: filter 0.15s; }
+.hw-me:hover .hw-mword { filter: none; }
+.hw-eye { display: inline-block; width: calc(var(--ps) * 7.5px); height: calc(var(--ps) * 4.8px); flex: none; }
+.hw-eye svg { display: block; width: 100%; height: 100%; }
+.hw-eye .open { display: none; }
+.hw-me:hover .hw-eye .open { display: inline; }
+.hw-me:hover .hw-eye .shut { display: none; }
 .hw-mtip { color: #c9cde0; font-size: 0.9em; word-break: keep-all; }
 
 /* ---------- 오른쪽 벽: 점수 ---------- */
@@ -68,7 +77,6 @@
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--ps) * 1.5px);
   text-align: center; overflow: hidden;
 }
-.hw-big { font-size: 4em; color: #ffe27a; font-family: var(--mono); line-height: 1; }
 .hw-ctitle { color: #f1cf5a; }
 .hw-csub { color: #8d93b4; }
 .hw-env { display: flex; flex-wrap: wrap; justify-content: center; gap: calc(var(--ps) * 1.5px); }
