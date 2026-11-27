@@ -1,17 +1,19 @@
-// 히든 워드 유사도. Claude 에게 히든 워드와 힌트가 얼마나 가까운지 0~100 점(소수 한 자리)으로 매기게 하고,
+// 히든 워드 유사도. Google Gemini 에게 히든 워드와 힌트가 얼마나 가까운지 0~100 점(소수 한 자리)으로 매기게 하고,
 // 힌트가 고유명사가 아닌 일반 명사인지도 함께 판정받는다. 결과는 저장하지 않고 매번 계산한다.
 //
 //   const sim = createSimilarity(env)
 //   await sim.score(hidden, hint)   { noun, score } 또는 { error }
 //
 // 환경변수
-//   ANTHROPIC_API_KEY   Claude API 키(Render 에만 둔다)
+//   GEMINI_API_KEY      Gemini API 키(Render 에만 둔다)
+//   HW_GEMINI_MODEL     모델 이름. 기본은 가장 추론이 강한 gemini-4-carbon
 //   HW_FAKE=1           키 없이 글자로 만든 가짜 점수를 쓴다(로컬 화면 확인용)
 'use strict';
 
-const Anthropic = require('@anthropic-ai/sdk');
+const { GoogleGenAI } = require('@google/genai');
 
-const MODEL = 'claude-opus-5-5';
+const DEFAULT_MODEL = 'gemini-4-carbon';
+const TIMEOUT_MS = 30000;
 
 const SYSTEM = `너는 단어 게임 "히든 워드"의 유사도 심판이다. 히든 워드와 힌트 두 한국어 단어가 주어지면 두 가지를 판정한다.
 
@@ -39,8 +41,7 @@ const SCHEMA = {
     noun: { type: 'boolean' },
     score: { type: 'number' }
   },
-  required: ['noun', 'score'],
-  additionalProperties: false
+  required: ['noun', 'score']
 };
 
 // 키 없이 화면을 확인할 때 쓰는 가짜 점수. 같은 쌍은 늘 같은 값이다.
@@ -51,35 +52,39 @@ function fakeScore(hidden, hint) {
   return Math.min(99.9, Math.round(((h % 600) / 10 + shared * 15) * 10) / 10);
 }
 
+function withTimeout(p, ms) {
+  let t;
+  return Promise.race([p, new Promise((_, rej) => { t = setTimeout(() => rej(new Error('timeout')), ms); })])
+    .finally(() => clearTimeout(t));
+}
+
 function createSimilarity(env = {}) {
   const fake = env.HW_FAKE === '1';
-  const client = env.ANTHROPIC_API_KEY ? new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, maxRetries: 1, timeout: 30000 }) : null;
-  if (!client && !fake) console.warn('[hw] ANTHROPIC_API_KEY not set, hints cannot be scored');
+  const model = env.HW_GEMINI_MODEL || DEFAULT_MODEL;
+  const ai = env.GEMINI_API_KEY ? new GoogleGenAI({ apiKey: env.GEMINI_API_KEY }) : null;
+  if (!ai && !fake) console.warn('[hw] GEMINI_API_KEY not set, hints cannot be scored');
   if (fake) console.warn('[hw] HW_FAKE=1, using fake similarity');
+  else if (ai) console.log(`[hw] similarity model=${model}`);
 
   async function score(hidden, hint) {
     if (fake) return { noun: true, score: fakeScore(hidden, hint) };
-    if (!client) return { error: '서버에 Claude 키가 없어 유사도를 계산할 수 없습니다' };
+    if (!ai) return { error: '서버에 Gemini 키가 없어 유사도를 계산할 수 없습니다' };
     try {
-      const res = await client.beta.messages.create({
-        model: MODEL,
-        max_tokens: 4000,
-        betas: ['server-side-fallback-2026-07-01'],
-        fallbacks: 'default',
+      const res = await withTimeout(ai.interactions.create({
+        model,
+        system_instruction: SYSTEM,
+        input: `히든 워드: ${hidden}\n힌트: ${hint}`,
+        response_format: { type: 'text', mime_type: 'application/json', schema: SCHEMA },
         // 두 단어 판정이라 깊게 생각할 필요가 없고, 힌트를 낸 뒤 기다리는 시간이 짧아야 한다
-        output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA } },
-        system: SYSTEM,
-        messages: [{ role: 'user', content: `히든 워드: ${hidden}\n힌트: ${hint}` }]
-      });
-      if (res.stop_reason === 'refusal') return { error: '이 힌트는 판정할 수 없습니다. 다른 단어를 내 주세요' };
-      const text = res.content.find(b => b.type === 'text');
-      const j = JSON.parse(text ? text.text : '');
+        generation_config: { thinking_level: 'low' },
+        // 게임 기록을 구글 쪽에 남기지 않는다
+        store: false
+      }), TIMEOUT_MS);
+      const j = JSON.parse(res.output_text || '');
       const s = Math.round(Math.min(100, Math.max(0, Number(j.score) || 0)) * 10) / 10;
       return { noun: !!j.noun, score: s };
     } catch (e) {
-      if (e instanceof Anthropic.RateLimitError) console.warn('[hw] claude rate limited');
-      else if (e instanceof Anthropic.APIError) console.warn(`[hw] claude error ${e.status}: ${e.message}`);
-      else console.warn('[hw] score failed', e.message);
+      console.warn(`[hw] gemini score failed${e.status ? ' ' + e.status : ''}: ${e.message}`);
       return { error: '유사도 계산에 실패했습니다. 다시 내 주세요' };
     }
   }
