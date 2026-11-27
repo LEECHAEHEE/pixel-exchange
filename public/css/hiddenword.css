@@ -4,7 +4,7 @@
 #hw-ui[hidden], #hw-ui [hidden] { display: none !important; }
 .stage:not([data-map='hiddenword']) #hw-ui { display: none; }
 
-.hw-board, .hw-me, .hw-score, .hw-center, .hw-input, .hw-toast {
+.hw-board, .hw-me, .hw-score, .hw-quit, .hw-center, .hw-input, .hw-toast {
   position: absolute;
   left: calc(var(--x) * var(--ps) * 1px);
   top: calc(var(--y) * var(--ps) * 1px);
@@ -74,6 +74,14 @@
 .hw-prow b { font-weight: normal; color: #ffe27a; font-family: var(--mono); }
 .hw-prow.setter .hw-pn { color: #ffb86b; }
 .hw-prow.gone { color: #6b708c; text-decoration: line-through; }
+
+/* 점수 칸 아래 나가기 버튼 */
+.hw-quit {
+  pointer-events: auto; cursor: pointer; padding: 0;
+  font: inherit; font-size: max(10px, calc(var(--ps) * 3px)); color: #fff; background: #b8434b;
+  border: calc(var(--ps) * 0.5px) solid #7a1f27; border-radius: calc(var(--ps) * 0.8px);
+}
+.hw-quit:hover { background: #d8545c; }
 
 /* ---------- 가운데: 카운트다운·봉투·공개·순위 ---------- */
 .hw-center {

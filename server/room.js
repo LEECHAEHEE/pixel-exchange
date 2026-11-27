@@ -344,6 +344,7 @@ function createRoom({ market, race, accounts, coins, usStocks, similarity }) {
       case 'hwPick':
       case 'hwHint':
       case 'hwGuess':
+      case 'hwQuit':
         if (u.map === 'hiddenword') hw.handle(u, msg);
         return;
       // 풋살장 전용 메시지도 장소 안에 있을 때만 넘긴다

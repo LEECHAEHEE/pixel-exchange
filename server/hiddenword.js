@@ -7,7 +7,7 @@
 // 모두 한 번씩 출제하면 끝. 맞힌 사람은 1점, 아무도 못 맞히면 출제자가 1점.
 //
 // 메시지(모두 hw 접두사)
-//   C→S  hwSeat{seat|null} · hwPick{word} · hwHint{word} · hwGuess{word}
+//   C→S  hwSeat{seat|null} · hwPick{word} · hwHint{word} · hwGuess{word} · hwQuit(자리·판에서 빠지기)
 //   S→C  hwState(공개 상태 전체) · hwEnvelope{words} · hwMine{word} · hwErr{text} · hwSys{text}
 // 히든 워드와 제출한 답은 공개 시점 전에는 본인에게만 보낸다.
 'use strict';
@@ -353,6 +353,11 @@ function createHiddenWord({ send, similarity }) {
   function leave(u) {
     if (!members.has(u.id)) return;
     members.delete(u.id);
+    withdraw(u);
+  }
+
+  // 자리와 판에서 빠진다. 게임장을 나갈 때와, 게임장에 남아 '나가기' 버튼을 누를 때 함께 쓴다.
+  function withdraw(u) {
     const si = seats.indexOf(u.id);
     if (!inGame()) {
       if (si >= 0) seats[si] = null;
@@ -382,6 +387,7 @@ function createHiddenWord({ send, similarity }) {
       case 'hwPick': return handlePick(u, String(msg.word || ''));
       case 'hwHint': return handleHint(u, msg.word);
       case 'hwGuess': return handleGuess(u, msg.word);
+      case 'hwQuit': return withdraw(u);
     }
   }
 

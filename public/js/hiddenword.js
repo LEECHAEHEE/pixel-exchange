@@ -60,6 +60,7 @@
         <div class="hw-mine"></div>
       </div>
       <div class="hw-score"></div>
+      <button type="button" class="hw-quit" hidden>나가기</button>
       <div class="hw-center" hidden></div>
       <form class="hw-input" hidden><input maxlength="12" autocomplete="off" spellcheck="false"><button type="submit">내기</button></form>
       <div class="hw-toast" hidden></div>`;
@@ -67,12 +68,14 @@
     const $ = (s) => root.querySelector(s);
     const boardEl = $('.hw-board'), hintsEl = $('.hw-hints');
     const meEl = $('.hw-me'), phaseEl = $('.hw-phase'), whoEl = $('.hw-who'), timerEl = $('.hw-timer'), mineEl = $('.hw-mine');
-    const scoreEl = $('.hw-score'), centerEl = $('.hw-center');
+    const scoreEl = $('.hw-score'), quitEl = $('.hw-quit'), centerEl = $('.hw-center');
     const formEl = $('.hw-input'), inputEl = formEl.querySelector('input'), toastEl = $('.hw-toast');
     // 전광판 자리는 places.js 가 그리는 금테(HW.board) 안쪽과 맞춘다
     place(boardEl, HW.board);
     place(meEl, { x: 2, y: 3, w: 80, h: 40 });
     place(scoreEl, { x: 260, y: 3, w: 58, h: 40 });
+    // 점수 칸 바로 아래 바닥
+    place(quitEl, { x: 278, y: 49, w: 40, h: 10 });
     place(centerEl, { x: 98, y: 76, w: 124, h: 68 });
     place(formEl, { x: 96, y: 161, w: 128, h: 13 });
     place(toastEl, { x: 80, y: 48, w: 160, h: 9 });
@@ -170,7 +173,20 @@
       }
     }
 
+    // 나가기: 방석에 앉아 있거나(대기·카운트다운) 판에 참가 중일 때만 보인다
+    function renderQuit() {
+      const p = meP();
+      quitEl.hidden = !(inGame() ? p && !p.gone : st.seats.includes(myId));
+    }
+
+    quitEl.addEventListener('click', () => {
+      quitEl.blur();
+      if (inGame() && !window.confirm('게임에서 나갈까요? 이번 판에는 다시 참가할 수 없습니다.')) return;
+      send({ t: 'hwQuit' });
+    });
+
     function renderScore() {
+      renderQuit();
       scoreEl.replaceChildren(el('div', 'hw-shead', st.players.length ? '점수' : '좌석'));
       if (!st.players.length) {
         st.seats.forEach((id, i) => { if (id) scoreEl.append(el('div', 'hw-prow', `${i + 1}. ${nameOf(id) || scene.net.names().find(([x]) => x === id)?.[1] || (id === myId ? '나' : '')}`)); });
@@ -250,10 +266,9 @@
       let mode = '';
       if (p && !p.gone && st.phase === 'hint' && st.setter === myId && st.hints.length < MAX_HINTS) mode = 'hint';
       if (p && !p.gone && st.phase === 'guess' && st.setter !== myId) mode = 'guess';
-      if (mode === inputMode) {
-        if (mode === 'hint') formEl.querySelector('button').disabled = !!st.scoring;
-        return;
-      }
+      // 힌트 계산 중에만 버튼을 막는다. 출제 마지막 힌트에서 막힌 버튼이 다음 차례 정답 제출까지 남지 않게 매번 다시 정한다.
+      formEl.querySelector('button').disabled = mode === 'hint' && !!st.scoring;
+      if (mode === inputMode) return;
       inputMode = mode;
       formEl.hidden = !mode;
       inputEl.value = '';
