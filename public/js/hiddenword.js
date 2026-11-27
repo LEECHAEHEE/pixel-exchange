@@ -2,9 +2,9 @@
 // 서버(server/hiddenword.js)가 보내는 hwState 를 그대로 그리고, 방석 위에 서면 앉았다고 알린다.
 // 게임 중 참가자는 자기 방석 밖으로 못 나간다(places.js 의 confine 이 allowed 를 묻는다).
 (function () {
-  const PHASE_KO = { lobby: '대기 중', countdown: '곧 시작', pick: '히든 워드 고르기', hint: '힌트', guess: '정답 쓰기', reveal: '정답 공개', end: '게임 끝' };
+  const PHASE_KO = { lobby: '대기 중', countdown: '곧 시작', pick: '히든 워드 고르기', hint: '힌트', auto: '핵심 단어 찾는 중', guess: '정답 제출', reveal: '정답 공개', end: '게임 끝' };
   const MIN_PLAYERS = 3;
-  const MAX_HINTS = 5;
+  const MAX_HINTS = 10;
 
   // 도트 눈 아이콘(11 x 7). # 은 테두리, o 는 눈동자, . 은 흰자, 공백은 투명.
   // 감은 눈과 뜬 눈을 겹쳐 두고 CSS 가 마우스를 올렸는지에 따라 하나만 보인다.
@@ -54,19 +54,24 @@
     root.id = 'hw-ui';
     root.hidden = true;
     root.innerHTML = `
-      <div class="hw-board"><div class="hw-head"><span class="hw-title"></span><span class="hw-timer"></span></div><ol class="hw-hints"></ol></div>
-      <div class="hw-me"></div>
+      <div class="hw-board"><ol class="hw-hints"></ol></div>
+      <div class="hw-me">
+        <div class="hw-stat"><div class="hw-stxt"><div class="hw-phase"></div><div class="hw-who"></div></div><b class="hw-timer"></b></div>
+        <div class="hw-mine"></div>
+      </div>
       <div class="hw-score"></div>
       <div class="hw-center" hidden></div>
       <form class="hw-input" hidden><input maxlength="12" autocomplete="off" spellcheck="false"><button type="submit">내기</button></form>
       <div class="hw-toast" hidden></div>`;
     stage.appendChild(root);
     const $ = (s) => root.querySelector(s);
-    const boardEl = $('.hw-board'), titleEl = $('.hw-title'), timerEl = $('.hw-timer'), hintsEl = $('.hw-hints');
-    const meEl = $('.hw-me'), scoreEl = $('.hw-score'), centerEl = $('.hw-center');
+    const boardEl = $('.hw-board'), hintsEl = $('.hw-hints');
+    const meEl = $('.hw-me'), phaseEl = $('.hw-phase'), whoEl = $('.hw-who'), timerEl = $('.hw-timer'), mineEl = $('.hw-mine');
+    const scoreEl = $('.hw-score'), centerEl = $('.hw-center');
     const formEl = $('.hw-input'), inputEl = formEl.querySelector('input'), toastEl = $('.hw-toast');
-    place(boardEl, { x: 63, y: 3, w: 194, h: 39 });
-    place(meEl, { x: 2, y: 3, w: 58, h: 40 });
+    // 전광판 자리는 places.js 가 그리는 금테(HW.board) 안쪽과 맞춘다
+    place(boardEl, HW.board);
+    place(meEl, { x: 2, y: 3, w: 80, h: 40 });
     place(scoreEl, { x: 260, y: 3, w: 58, h: 40 });
     place(centerEl, { x: 98, y: 76, w: 124, h: 68 });
     place(formEl, { x: 96, y: 161, w: 128, h: 13 });
@@ -122,28 +127,46 @@
       return s >= 60 ? Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0') : s + '초';
     }
 
+    // 왼쪽 칸 위쪽: 지금 단계(굵은 한 줄)와 누구 차례인지(한두 줄), 오른쪽에 남은 시간
+    function renderStatus() {
+      const s = st, who = nameOf(s.setter);
+      let phase = PHASE_KO[s.phase] || s.phase, sub = '';
+      // 시작 카운트다운은 가운데 전광판에만 보이고 왼쪽 칸은 비워 둔다
+      if (s.phase === 'countdown') phase = '';
+      else if (s.phase === 'lobby') sub = `방석 ${s.seats.filter(Boolean).length}/6\n${MIN_PLAYERS}명부터 시작`;
+      else if (s.phase === 'pick') {
+        const n = s.players.filter(q => !q.gone).length, k = s.players.filter(q => q.picked && !q.gone).length;
+        sub = `${k}/${n}명 골랐음`;
+      } else if (s.phase === 'hint') {
+        phase = `${who} 님 출제`;
+        sub = `힌트 ${s.hints.length}/${MAX_HINTS}` + (s.scoring ? '\n유사도 계산 중' : '');
+      } else if (s.phase === 'auto') { phase = `${who} 님 출제`; sub = 'AI 가 가장 가까운\n단어를 고르는 중'; }
+      else if (s.phase === 'guess' || s.phase === 'reveal') sub = `${who} 님의\n히든 워드`;
+      else if (s.phase === 'end') sub = '최종 순위';
+      phaseEl.textContent = phase;
+      whoEl.textContent = sub;
+      renderTimer();
+    }
+
+    function renderTimer() {
+      timerEl.textContent = st.endsAt && st.phase !== 'countdown' ? fmt(st.endsAt - Date.now()) : '';
+    }
+
     function renderBoard() {
       const s = st;
-      let title = PHASE_KO[s.phase] || s.phase;
-      if (s.phase === 'lobby') title = `방석에 ${MIN_PLAYERS}명 이상 앉으면 시작 (${s.seats.filter(Boolean).length}/6)`;
-      else if (s.phase === 'hint') title = `${nameOf(s.setter)} 님 출제 · 힌트 ${s.hints.length}/${MAX_HINTS}`;
-      else if (s.phase === 'guess') title = `정답 쓰기 · ${nameOf(s.setter)} 님의 히든 워드`;
-      else if (s.phase === 'reveal') title = `${nameOf(s.setter)} 님의 히든 워드 공개`;
-      titleEl.textContent = title;
       hintsEl.replaceChildren();
       // 카운트다운 동안은 제목 줄을 숨기고 문구만 전광판 한가운데에 둔다
       boardEl.classList.toggle('countdown', s.phase === 'countdown');
-      for (let i = 0; i < s.hints.length; i++) {
-        const h = s.hints[i];
-        hintsEl.append(el('li', 'hw-hint' + (i === s.key ? ' key' : ''), `${h.word} [${h.score.toFixed(1)}%]`));
+      // 전광판에는 힌트와 시작 카운트다운만 둔다. 진행 안내는 왼쪽 칸(renderStatus)이 맡는다.
+      if (s.phase === 'countdown') {
+        hintsEl.append(el('li', 'hw-hint wait', `${secLeft()}초 후 게임이 시작됩니다`));
+        return;
       }
-      if (s.phase === 'hint' && s.scoring) hintsEl.append(el('li', 'hw-hint wait', '유사도 계산 중…'));
-      if (!s.hints.length && !s.scoring) {
-        const msg = s.phase === 'countdown' ? `${secLeft()}초 후 게임이 시작됩니다`
-          : s.phase === 'hint' ? '출제자가 힌트를 고르는 중입니다'
-          : s.phase === 'lobby' ? '유사도는 Claude 가 0~100% 로 매깁니다. 95% 이상이면 힌트가 바로 끝나요'
-          : '';
-        if (msg) hintsEl.append(el('li', 'hw-hint wait', msg));
+      // 유사도 높은 순으로 놓고, 가장 최근에 나온 힌트(마지막에는 95% 힌트나 AI 가 고른 단어)를 노란색으로
+      const last = s.hints.length - 1;
+      const sorted = s.hints.map((h, i) => ({ h, i })).sort((a, b) => b.h.score - a.h.score);
+      for (const { h, i } of sorted) {
+        hintsEl.append(el('li', 'hw-hint' + (i === last ? ' last' : '') + (h.auto ? ' auto' : ''), `${h.word} [${h.score.toFixed(1)}%]`));
       }
     }
 
@@ -165,22 +188,21 @@
       }
     }
 
+    // 왼쪽 칸 아래쪽: 내 히든 워드
     function renderMe() {
-      meEl.replaceChildren();
+      mineEl.replaceChildren();
       const p = meP();
       if (p && !p.gone && mine) {
         // 옆 사람이 화면을 봐도 모르게 평소에는 흐리게, 마우스를 올리면 눈을 뜨며 단어가 보인다
-        const row = el('div', 'hw-mrow');
         const eye = el('span', 'hw-eye');
         eye.innerHTML = EYE_SVG;
-        row.append(el('span', 'hw-mword', mine), eye);
-        meEl.append(el('div', 'hw-mlabel', '내 히든 워드'), row);
+        mineEl.append(el('span', 'hw-mlabel', '내 히든 워드'), el('span', 'hw-mword', mine), eye);
       } else if (p && !p.gone) {
-        meEl.append(el('div', 'hw-mlabel', '내 히든 워드'), el('div', 'hw-mtip', '봉투에서 하나 고르세요'));
+        mineEl.append(el('span', 'hw-mtip', '봉투에서 히든 워드를 고르세요'));
       } else if (inGame()) {
-        meEl.append(el('div', 'hw-mlabel', '관전 중'), el('div', 'hw-mtip', '게임이 끝나면 방석에 앉아 참가하세요'));
+        mineEl.append(el('span', 'hw-mtip', '관전 중 · 끝나면 방석에 앉아 참가'));
       } else {
-        meEl.append(el('div', 'hw-mlabel', '히든 워드'), el('div', 'hw-mtip', '내 단어는 숨기고 남의 단어를 맞히세요'));
+        mineEl.append(el('span', 'hw-mtip', '내 단어는 숨기고 남의 단어를 맞히세요'));
       }
     }
 
@@ -202,8 +224,8 @@
           }
           centerEl.append(row);
         } else {
-          const n = s.players.filter(q => !q.gone).length, k = s.players.filter(q => q.picked && !q.gone).length;
-          centerEl.append(el('div', 'hw-ctitle', `다른 사람이 고르는 중 (${k}/${n})`));
+          // 몇 명이 골랐는지는 왼쪽 칸에 나온다
+          show = false;
         }
       } else if (s.phase === 'reveal' && s.reveal) {
         const r = s.reveal;
@@ -243,6 +265,7 @@
 
     function render() {
       if (!inZone) return;
+      renderStatus();
       renderBoard();
       renderScore();
       renderMe();
@@ -252,7 +275,7 @@
 
     setInterval(() => {
       if (!inZone) return;
-      timerEl.textContent = st.endsAt && st.phase !== 'countdown' ? fmt(st.endsAt - Date.now()) : '';
+      renderTimer();
       if (st.phase === 'countdown') renderBoard();
     }, 200);
 
@@ -304,7 +327,8 @@
       hwSys(m) { chat.addLog('히든 워드', m.text); }
     };
 
-    return { handlers, setMap, update, allowed, setMe(id) { myId = id; } };
+    // 다시 접속하면 서버는 내 자리를 모르므로, 방석 위에 서 있으면 다시 앉도록 보낸 기록을 지운다
+    return { handlers, setMap, update, allowed, setMe(id) { myId = id; sentSeat = null; } };
   }
 
   PX.createHiddenWord = createHiddenWord;

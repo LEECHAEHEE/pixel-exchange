@@ -2,7 +2,8 @@
 // 이동·위치는 room.js/scene.js 가 그대로 처리하고, 이 모듈은 좌석·진행·점수만 맡는다.
 //
 // 흐름: 원형 좌석에 3명 이상 앉으면 5초 카운트다운 → 봉투(명사 5개)에서 히든 워드 고르기 →
-// 무작위 순서로 한 사람씩 출제(힌트 최대 5개, 2분) → 나머지가 정답 쓰기(1분, 동시 공개) → 다음 출제자.
+// 무작위 순서로 한 사람씩 출제(힌트 최대 10개, 2분. 95% 이상이 없으면 Gemini 가 가장 가까운 단어를 공개)
+// → 나머지가 정답 제출(1분, 동시 공개) → 다음 출제자.
 // 모두 한 번씩 출제하면 끝. 맞힌 사람은 1점, 아무도 못 맞히면 출제자가 1점.
 //
 // 메시지(모두 hw 접두사)
@@ -15,15 +16,16 @@ const { WORDS } = require('./words');
 
 const FAST = process.env.HW_FAST === '1';
 const MS = FAST
-  ? { countdown: 5000, pick: 4000, hint: 20000, guess: 8000, reveal: 2500, end: 4000 }
-  : { countdown: 5000, pick: 20000, hint: 120000, guess: 60000, reveal: 7000, end: 15000 };
+  ? { countdown: 5000, pick: 4000, hint: 20000, auto: 30000, guess: 8000, reveal: 2500, end: 4000 }
+  : { countdown: 5000, pick: 20000, hint: 120000, auto: 30000, guess: 60000, reveal: 7000, end: 15000 };
 
 const SEATS = 6;
 const MIN_PLAYERS = 3;
 const ENVELOPE = 5;
-const MAX_HINTS = 5;
+const MAX_HINTS = 10;
 // 이 유사도 이상인 힌트가 나오면 힌트 내기를 바로 끝낸다
 const STOP_SCORE = 95;
+const AUTO_SCORE_MS = 8000;
 const WORD_RE = /^[가-힣]{1,8}$/;
 
 // 좌석 자리(발 위치). public/js/places.js 의 HW.seats 와 같아야 한다. 탁자 둘레를 위에서부터 시계 방향으로.
@@ -220,16 +222,54 @@ function createHiddenWord({ send, similarity }) {
     push();
   }
 
+  // 출제자 힌트 중 95% 이상이 나왔으면 그것이 핵심 힌트다. 10개를 다 내거나 시간이 끝나도 없으면
+  // Gemini 가 히든 워드와 가장 가까운 단어를 대신 찾아 공개한다.
   function endHints() {
     if (phase !== 'hint') return;
     scoring = false;
-    if (hints.length) {
-      let best = 0;
-      hints.forEach((h, i) => { if (h.score > hints[best].score) best = i; });
-      key = best;
-      sys(`핵심 힌트: ${hints[best].word} (${hints[best].score.toFixed(1)}%). 정답을 적으세요.`);
+    const top = hints.findIndex(h => h.score >= STOP_SCORE);
+    if (top >= 0) return toGuess(top);
+    autoHint();
+  }
+
+  async function autoHint() {
+    const s = setter();
+    const turnAt = turn;
+    setPhase('auto', MS.auto, () => toGuess(bestIndex()));
+    sys('95% 이상인 힌트가 없어 AI 가 히든 워드와 가장 가까운 단어를 고릅니다.');
+    const exclude = hints.map(h => h.word);
+    // 후보를 받아 규칙에 맞는 것만 남기고, 모두 같은 기준으로 유사도를 매겨 가장 높은 것을 공개한다
+    const r = await similarity.suggest(s.hidden, exclude);
+    if (phase !== 'auto' || turn !== turnAt) return;
+    const words = [...new Set((r.words || []).map(norm))]
+      .filter(w => WORD_RE.test(w) && !w.includes(s.hidden) && !s.hidden.includes(w) && !exclude.includes(w));
+    // 후보 채점은 가끔 한두 개가 크게 늦어서, 8초 안에 돌아온 것 중에서만 고른다
+    const scored = await Promise.all(words.map(w => similarity.score(s.hidden, w, AUTO_SCORE_MS).then(x => ({ word: w, ...x }))));
+    if (phase !== 'auto' || turn !== turnAt) return;
+    const best = scored.filter(x => !x.error && x.noun).sort((a, b) => b.score - a.score)[0];
+    if (!best) {
+      sys('가까운 단어를 찾지 못해 출제자 힌트 중 가장 높은 것을 핵심 힌트로 씁니다.');
+      return toGuess(bestIndex());
+    }
+    hints.push({ word: best.word, score: best.score, auto: true });
+    toGuess(hints.length - 1);
+  }
+
+  function bestIndex() {
+    if (!hints.length) return null;
+    let best = 0;
+    hints.forEach((h, i) => { if (h.score > hints[best].score) best = i; });
+    return best;
+  }
+
+  function toGuess(i) {
+    if (phase !== 'hint' && phase !== 'auto') return;
+    key = i;
+    if (i !== null && hints[i]) {
+      const h = hints[i];
+      sys(`핵심 힌트${h.auto ? '(AI)' : ''}: ${h.word} (${h.score.toFixed(1)}%). 출제자를 뺀 모두 정답을 제출하세요.`);
     } else {
-      sys('힌트 없이 정답 쓰기로 넘어갑니다.');
+      sys('힌트 없이 정답 제출로 넘어갑니다.');
     }
     setPhase('guess', MS.guess, endGuess);
   }
@@ -327,7 +367,7 @@ function createHiddenWord({ send, similarity }) {
     if (activeCount() < 2) return endGame();
     if (phase === 'pick') {
       if ([...players.values()].every(q => q.gone || q.hidden)) return afterPick();
-    } else if (s && s.id === u.id && (phase === 'hint' || phase === 'guess')) {
+    } else if (s && s.id === u.id && (phase === 'hint' || phase === 'auto' || phase === 'guess')) {
       sys('출제자가 나가서 다음 차례로 넘어갑니다.');
       return nextTurn();
     } else if (phase === 'guess' && guessers().every(q => guesses.has(q.id))) {

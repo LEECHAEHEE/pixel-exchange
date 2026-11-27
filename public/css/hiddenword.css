@@ -15,38 +15,44 @@
 
 /* ---------- 벽 전광판 ---------- */
 .hw-board {
-  padding: calc(var(--ps) * 1.5px) calc(var(--ps) * 3px);
+  padding: calc(var(--ps) * 2px) calc(var(--ps) * 3px);
   font-size: max(10px, calc(var(--ps) * 3.4px)); line-height: 1.25;
-  display: flex; flex-direction: column; gap: calc(var(--ps) * 0.8px); overflow: hidden;
+  display: flex; flex-direction: column; overflow: hidden;
 }
-.hw-head { display: flex; justify-content: space-between; color: #f1cf5a; white-space: nowrap; }
-.hw-title { overflow: hidden; text-overflow: ellipsis; }
-.hw-timer { font-family: var(--mono); color: #ffe27a; margin-left: calc(var(--ps) * 2px); }
-/* 힌트 5개가 작은 화면에서도 들어가도록 두 줄로 나눠 놓는다(3줄) */
+/* 힌트는 5줄씩 왼쪽 칸부터 위에서 아래로 채운다(10개면 2칸). AI 가 고른 단어가 붙어 11개가 되면 3번째 칸이 생긴다. */
 .hw-hints {
   margin: 0; padding: 0; list-style: none; flex: 1; min-height: 0;
-  display: grid; grid-template-columns: 1fr 1fr; align-content: start;
-  column-gap: calc(var(--ps) * 4px); row-gap: calc(var(--ps) * 0.4px);
+  font-size: 1em; line-height: 1.15;
+  display: grid; grid-auto-flow: column; grid-template-rows: repeat(5, auto); grid-auto-columns: minmax(0, 1fr);
+  align-content: center; column-gap: calc(var(--ps) * 3px); row-gap: 0;
 }
+.hw-hint.auto { color: #7fd6ff; }
+.hw-hint.last { color: #ffe27a; }
 .hw-hint { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.hw-hint.wait { grid-column: 1 / -1; color: #8d93b4; white-space: normal; }
-/* 시작 카운트다운만 남은 칸 한가운데에 크게 */
-.hw-board.countdown .hw-head { display: none; }
+.hw-hint.wait { grid-column: 1 / -1; color: #8d93b4; white-space: normal; }/* 시작 카운트다운만 남은 칸 한가운데에 크게 */
 .hw-board.countdown .hw-hints { align-content: center; }
 .hw-board.countdown .hw-hint { text-align: center; color: #ffe27a; font-size: 1.6em; }
-.hw-hint.key { color: #ffe27a; }
 
-/* ---------- 왼쪽 벽: 내 히든 워드 ---------- */
+/* ---------- 왼쪽 벽: 진행 상황·남은 시간(위), 내 히든 워드(아래) ---------- */
 .hw-me {
-  padding: calc(var(--ps) * 1.5px); border: calc(var(--ps) * 0.5px) solid #a8832c; border-radius: calc(var(--ps) * 1px);
-  background: rgba(11, 13, 24, 0.9); font-size: max(10px, calc(var(--ps) * 3px)); line-height: 1.25;
-  display: flex; flex-direction: column; justify-content: center; text-align: center; gap: calc(var(--ps) * 1px);
+  pointer-events: auto; cursor: default;
+  padding: calc(var(--ps) * 1.5px) calc(var(--ps) * 2px); border: calc(var(--ps) * 0.5px) solid #a8832c; border-radius: calc(var(--ps) * 1px);
+  background: rgba(11, 13, 24, 0.9); font-size: max(9px, calc(var(--ps) * 2.8px)); line-height: 1.2;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+/* 위쪽: 왼쪽에 단계·차례 글, 오른쪽에 남은 시간. 시간은 글 덩어리 높이의 가운데에 맞춘다. */
+.hw-stat { flex: 1; display: flex; align-items: center; justify-content: space-between; gap: calc(var(--ps) * 1.5px); min-height: 0; }
+.hw-stxt { min-width: 0; }
+.hw-phase { color: #f1cf5a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hw-who { color: #c9cde0; white-space: pre-line; }
+.hw-timer { font-family: var(--mono); font-weight: bold; color: #ffe27a; font-size: 2.3em; line-height: 1; white-space: nowrap; }
+/* 아래쪽: 내 히든 워드. 평소에 흐리게 두고 눈을 감고 있다가, 마우스를 올린 동안 눈을 뜨며 또렷해진다. */
+.hw-mine {
+  border-top: 1px solid #3a3f5a; padding-top: calc(var(--ps) * 1px); margin-top: calc(var(--ps) * 1px);
+  display: flex; align-items: center; justify-content: center; gap: calc(var(--ps) * 1.5px); white-space: nowrap;
 }
 .hw-mlabel { color: #8d93b4; }
-.hw-mword { color: #ffe27a; font-size: 1.5em; word-break: keep-all; }
-/* 내 히든 워드는 평소에 흐리게 두고 눈을 감고 있다. 마우스를 올린 동안 눈을 뜨며 또렷해진다. */
-.hw-me { pointer-events: auto; cursor: default; }
-.hw-mrow { display: flex; align-items: center; justify-content: center; gap: calc(var(--ps) * 1.5px); }
+.hw-mword { color: #ffe27a; font-size: 1.3em; }
 .hw-me .hw-mword { filter: blur(calc(var(--ps) * 1.2px)); user-select: none; transition: filter 0.15s; }
 .hw-me:hover .hw-mword { filter: none; }
 .hw-eye { display: inline-block; width: calc(var(--ps) * 7.5px); height: calc(var(--ps) * 4.8px); flex: none; }
@@ -54,7 +60,7 @@
 .hw-eye .open { display: none; }
 .hw-me:hover .hw-eye .open { display: inline; }
 .hw-me:hover .hw-eye .shut { display: none; }
-.hw-mtip { color: #c9cde0; font-size: 0.9em; word-break: keep-all; }
+.hw-mtip { color: #c9cde0; font-size: 0.9em; white-space: normal; text-align: center; word-break: keep-all; }
 
 /* ---------- 오른쪽 벽: 점수 ---------- */
 .hw-score {

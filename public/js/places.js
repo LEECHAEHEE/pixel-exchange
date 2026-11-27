@@ -406,6 +406,8 @@
   const HW = {
     wallH: 46,
     table: { cx: 160, cy: 110, rx: 34, ry: 20 },
+    // 벽 전광판 안쪽(글씨는 hiddenword.js 가 이 자리에 DOM 으로). 왼쪽 상태 칸(x 2~82)과 오른쪽 점수 칸(x 260~318) 사이.
+    board: { x: 86, y: 3, w: 171, h: 39 },
     seats: Array.from({ length: 6 }, (_, i) => {
       const a = (-90 + i * 60) * Math.PI / 180;
       return { x: Math.round(160 + 58 * Math.cos(a)), y: Math.round(110 + 40 * Math.sin(a)) };
@@ -434,8 +436,9 @@
     rect(g, 0, 0, W, HW.wallH, HW_COL.wall);
     rect(g, 0, HW.wallH - 3, W, 3, HW_COL.goldDark);
     rect(g, 0, HW.wallH - 1, W, 1, PAL.outline);
-    rect(g, 62, 2, 196, 41, HW_COL.gold);
-    rect(g, 63, 3, 194, 39, HW_COL.board);
+    const b = HW.board;
+    rect(g, b.x - 1, b.y - 1, b.w + 2, b.h + 2, HW_COL.gold);
+    rect(g, b.x, b.y, b.w, b.h, HW_COL.board);
     // 방석
     HW.seats.forEach((s, i) => {
       ellipse(g, s.x, s.y + 1, 8, 4, 'rgba(0,0,0,0.3)');
